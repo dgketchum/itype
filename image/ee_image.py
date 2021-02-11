@@ -19,10 +19,6 @@ import ee
 
 ee.Initialize()
 
-BOUNDS = 'users/dgketchum/boundaries/MT'
-POINTS = 'users/dgketchum/itype/bvrhd_pts'
-GRID = 'users/dgketchum/itype/bvrhd_grd'
-LABELS = 'users/dgketchum/itype/mt_test'
 GS_BUCKET = 'itype'
 
 KERNEL_SIZE = 512
@@ -32,96 +28,132 @@ lists = ee.List.repeat(list_, KERNEL_SIZE)
 KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 
-def create_labels():
-    class_labels = ee.Image().byte()
-    flood = ee.FeatureCollection(LABELS).filter(ee.Filter.eq("IType", 'F'))
-    pivot = ee.FeatureCollection(LABELS).filter(ee.Filter.eq("IType", 'P'))
-    sprinkler = ee.FeatureCollection(LABELS).filter(ee.Filter.eq("IType", 'S'))
-    class_labels = class_labels.paint(flood, 1)
-    class_labels = class_labels.paint(pivot, 2)
-    class_labels = class_labels.paint(sprinkler, 3)
-    return class_labels
+class EETrainingStack(object):
 
+    def __init__(self, year, n_shards=10):
+        self.year = year
+        self.start, self.end = '{}-01-01'.format(year), '{}-12-31'.format(year)
+        self.bounds = 'users/dgketchum/boundaries/MT'
+        self.points = 'users/dgketchum/itype/bvrhd_pts'
+        self.grid = 'users/dgketchum/itype/bvrhd_grd'
+        self.labels = 'users/dgketchum/itype/mt_test'
+        self.points_fc, self.features = None, None
+        self.data_stack, self.image_stack = None, None
+        self.shards = n_shards
+        self.out_gs_bucket = 'itype'
+        self.kernel = KERNEL
+        self.task = None
 
-def create_image(roi, start, end):
-    def mask(x):
-        qa = x.select(['QA60'])
-        x = x.updateMask(qa.lt(1))
-        return x
+    def _create_labels(self):
+        class_labels = ee.Image().byte()
+        flood = ee.FeatureCollection(self.labels).filter(ee.Filter.eq("IType", 'F'))
+        pivot = ee.FeatureCollection(self.labels).filter(ee.Filter.eq("IType", 'P'))
+        sprinkler = ee.FeatureCollection(self.labels).filter(ee.Filter.eq("IType", 'S'))
+        class_labels = class_labels.paint(flood, 1)
+        class_labels = class_labels.paint(pivot, 2)
+        class_labels = class_labels.paint(sprinkler, 3)
+        return class_labels
 
-    naip = ee.ImageCollection('USDA/NAIP/DOQQ').filterDate(start, end).mosaic()
-    proj = naip.projection().getInfo()
-    sent = ee.ImageCollection('COPERNICUS/S2').filterDate(start, end).filterBounds(roi)
-    sent = sent.map(lambda x: mask(x))
-    ndvi = sent.map(lambda x: x.addBands(x.normalizedDifference(['B8', 'B4'])))
-    std_ndvi = ndvi.select('nd').reduce(ee.Reducer.stdDev()).reproject(crs=proj['crs'], scale=1.0)
-    max_ndvi = ndvi.select('nd').reduce(ee.Reducer.max()).reproject(crs=proj['crs'], scale=1.0)
-    naip = naip.addBands([std_ndvi.rename('std_ndvi'), max_ndvi.rename('mx_ndvi')])
-    band_names = naip.bandNames().getInfo()
-    return naip, band_names
+    def _create_image(self, roi, start, end):
+        def mask(x):
+            qa = x.select(['QA60'])
+            x = x.updateMask(qa.lt(1))
+            return x
 
+        naip = ee.ImageCollection('USDA/NAIP/DOQQ').filterDate(start, end).mosaic()
+        proj = naip.projection().getInfo()
+        sent = ee.ImageCollection('COPERNICUS/S2').filterDate(start, end).filterBounds(roi)
+        sent = sent.map(lambda x: mask(x))
+        ndvi = sent.map(lambda x: x.addBands(x.normalizedDifference(['B8', 'B4'])))
+        std_ndvi = ndvi.select('nd').reduce(ee.Reducer.stdDev()).reproject(crs=proj['crs'], scale=1.0)
+        max_ndvi = ndvi.select('nd').reduce(ee.Reducer.max()).reproject(crs=proj['crs'], scale=1.0)
+        naip = naip.addBands([std_ndvi.rename('std_ndvi'), max_ndvi.rename('mx_ndvi')])
+        band_names = naip.bandNames().getInfo()
+        return naip, band_names
 
-def extract_by_point(year, n_shards=10):
-    roi = ee.FeatureCollection(BOUNDS).geometry()
-    points_fc = ee.FeatureCollection(POINTS)
-    points_fc = points_fc.toList(points_fc.size())
+    def _build_data(self):
+        roi = ee.FeatureCollection(self.bounds).geometry()
+        points_fc = ee.FeatureCollection(self.points)
+        self.points_fc = points_fc.toList(points_fc.size())
 
-    s, e = '{}-01-01'.format(year), '{}-12-31'.format(year)
-    image_stack, features = create_image(roi, start=s, end=e)
+        image_stack, features = self._create_image(roi, start=self.start, end=self.end)
 
-    i_labels = create_labels()
-    image_stack = ee.Image.cat([image_stack, i_labels]).float()
-    features = features + ['label']
+        i_labels = self._create_labels()
+        image_stack = ee.Image.cat([image_stack, i_labels]).float()
+        self.features = features + ['label']
 
-    projection = ee.Projection('EPSG:3857')
-    image_stack = image_stack.reproject(projection, None, 1.0)
-    data_stack = image_stack.neighborhoodToArray(KERNEL)
+        projection = ee.Projection('EPSG:3857')
+        self.image_stack = image_stack.reproject(projection, None, 1.0)
+        self.data_stack = image_stack.neighborhoodToArray(self.kernel)
 
-    ct = 0
-    geometry_sample = None
-    for idx in range(points_fc.size().getInfo()):
-        point = ee.Feature(points_fc.get(idx))
-        geometry_sample = ee.ImageCollection([])
+    def export_tfrecord(self):
 
-        sample = data_stack.sample(
-            region=point.geometry(),
-            scale=1.0,
-            numPixels=1,
-            tileScale=16,
-            dropNulls=False)
+        ct = 0
+        geometry_sample = None
+        for idx in range(self.points_fc.size().getInfo()):
+            point = ee.Feature(self.points_fc.get(idx))
+            geometry_sample = ee.ImageCollection([])
 
-        geometry_sample = geometry_sample.merge(sample)
-        if (ct + 1) % n_shards == 0:
-            name_ = '{}_{}'.format(str(year), idx)
-            export_task(geometry_sample, features, filename=name_)
-            geometry_sample = None
-        ct += 1
-    if geometry_sample:
-        name_ = '{}_{}'.format(str(year), idx)
+            sample = self.data_stack.sample(
+                region=point.geometry(),
+                scale=1.0,
+                numPixels=1,
+                tileScale=16,
+                dropNulls=False)
 
-        export_task(geometry_sample, features, filename=name_)
+            geometry_sample = geometry_sample.merge(sample)
+            if (ct + 1) % self.shards == 0:
+                name_ = '{}_{}'.format(str(self.year), idx)
+                self.export_tfr(geometry_sample, filename=name_)
+                geometry_sample = None
+            ct += 1
+        if geometry_sample:
+            name_ = '{}_{}'.format(str(self.year), idx)
 
-    print('exported {}, {} features'.format(year, ct))
+            self.export_tfr(geometry_sample, filename=name_)
 
+        print('exported {}, {} features'.format(self.year, ct))
 
-def export_task(sample, features, filename):
-    task = ee.batch.Export.table.toCloudStorage(
-        collection=sample,
-        bucket=GS_BUCKET,
-        description=filename,
-        fileNamePrefix=filename,
-        fileFormat='TFRecord',
-        selectors=features)
+    def export_tif(self):
+        ct = 0
+        for idx in range(self.points_fc.size().getInfo()):
+            name_ = '{}'.format(ct)
+            patch = ee.Feature(self.points_fc.get(idx))
+            kwargs = {
+                'image': self.image_stack,
+                'bucket': self.out_gs_bucket,
+                'description': name_,
+                'fileNamePrefix': name_,
+                'crs': 'EPSG:3857',
+                'region': patch.geometry(),
+                'scale': 1.0,
+                'fileFormat': 'GeoTIFF',
+                'maxPixels': 1e13
+            }
 
-    try:
-        task.start()
-        print(filename)
-    except ee.ee_exception.EEException:
-        print('waiting 50 minutes to export {}'.format(filename))
-        time.sleep(3000)
-        task.start()
+        self.task = ee.batch.Export.image.toCloudStorage(kwargs)
+        self.start_task()
+
+    def table_task(self, sample, filename):
+        self.task = ee.batch.Export.table.toCloudStorage(
+            collection=sample,
+            bucket=GS_BUCKET,
+            description=filename,
+            fileNamePrefix=filename,
+            fileFormat='TFRecord',
+            selectors=self.features)
+        self.start_task()
+
+    def start_task(self):
+        try:
+            self.task.start()
+        except ee.ee_exception.EEException:
+            print('waiting 50 minutes to export')
+            time.sleep(3000)
+            self.task.start()
 
 
 if __name__ == '__main__':
-    extract_by_point(2019)
+    stack = EETrainingStack(2019)
+    stack.export_tif()
 # ========================= EOF ====================================================================

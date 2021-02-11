@@ -39,14 +39,13 @@ TEMP_TIF = os.path.join(os.path.dirname(__file__), 'temp', 'temp_tile_geo.tif')
 ITYPE_MAP = {'F': 1, 'P': 2, 'S': 3}
 
 
-def convert_bytes(num):
-    for x in ['bytes', 'KB', 'MB', 'GB', 'TB']:
-        if num < 1024.0:
-            return num, x
-        num /= 1024.0
-
-
 def file_size(file_path):
+    def convert_bytes(num):
+        for x in ['bytes', 'KB', 'MB', 'GB', 'TB']:
+            if num < 1024.0:
+                return num, x
+            num /= 1024.0
+
     if os.path.isfile(file_path):
         file_info = os.stat(file_path)
         return convert_bytes(file_info.st_size)
@@ -71,8 +70,13 @@ def get_naip_polygon(bbox):
                     [bbox[2], bbox[1]]])
 
 
-def get_training_scenes(geometries, name_prefix='MT', out_dir=None, year=None, n=10,
-                        save_shp=False, feature_range=None,
+def get_training_scenes(geometries,
+                        name_prefix='MT',
+                        out_dir=None,
+                        year=None,
+                        n=10,
+                        save_shp=False,
+                        feature_range=None,
                         buffer=15000.):
     ct = 0
 
