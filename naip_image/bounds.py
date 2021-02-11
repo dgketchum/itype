@@ -49,13 +49,11 @@ class BufferPoint(BBox):
         BBox.__init__(self)
 
     def buffer_meters(self, lat, lon, distance):
-        # epsg = self.geographic_to_utm_zone(lat, lon)
         y, x = lat, lon
         self.west = x - distance
         self.south = y - distance
         self.east = x + distance
         self.north = y + distance
-        # self.west, self.south, self.east, self.north = self.to_geographic(epsg)
         return self.west, self.south, self.east, self.north
 
 

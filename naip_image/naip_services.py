@@ -1,5 +1,5 @@
 # =============================================================================================
-# Copyright 2018 dgketchum
+# Copyright 2021 dgketchum
 #
 # Licensed under the Apache License, Version 2.LE07_clip_L1TP_039027_20150529_20160902_01_T1_B1.TIF (the "License");
 # you may not use this file except in compliance with the License.

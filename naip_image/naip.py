@@ -1,5 +1,5 @@
 # =============================================================================================
-# Copyright 2018 dgketchum
+# Copyright 2021 dgketchum
 #
 # Licensed under the Apache License, Version 2 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@ from rasterio.crs import CRS
 from rasterio.warp import reproject, Resampling, calculate_default_transform
 from requests import get
 
-
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 print('Disabling urllib3.exceptions.InsecureRequestWarning')
 
@@ -141,7 +141,7 @@ class ApfoNaip(NaipImage):
             lon = kwargs['centroid'][1]
             if 'buffer' not in kwargs.keys():
                 kwargs['buffer'] = 1000
-            self.bbox = bbox = BufferPoint().buffer_meters(lat, lon, kwargs['buffer'])
+            self.bbox = BufferPoint().buffer_meters(lat, lon, kwargs['buffer'])
 
         if 'year' in kwargs.keys():
             y = int(kwargs['year'])
@@ -150,19 +150,26 @@ class ApfoNaip(NaipImage):
 
         else:
             epoch = '1230768000000%2C1262304000000'
-
-        self.naip_base_url = 'https://services.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/'
-        self.usda_query_str = 'ImageServer/exportImage?&bbox={a}&time={b}' \
-                              '&imageSR=4326&bboxSR=4326&size=2048,2048' \
-                              '&format=tiff&pixelType=U8' \
-                              '&mosaicRule=%7B%22mosaicMethod%22%3A%22esriMosaicNorthwest%22%2C%22' \
-                              'sortField%22%3A%22%22%2C%22mosaicOperation%22%3A%22MT_FIRST%22%7D&' \
-                              'pixelType=f32&f=image'.format(a=bbox, b=epoch)
+        self.bbox_str = '{},{},{},{}'.format(self.bbox[0], self.bbox[1], self.bbox[2], self.bbox[3])
+        self.base_url = 'https://services.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/exportImage?'
+        # self.usda_query_str = 'ImageServer/exportImage?&bbox={a}&time={b}' \
+        #                       '&imageSR=102100&bboxSR=102100&size=2048,2048' \
+        #                       '&format=tiff&pixelType=U8' \
+        #                       '&mosaicRule=%7B%22mosaicMethod%22%3A%22esriMosaicNorthwest%22%2C%22' \
+        #                       'sortField%22%3A%22%22%2C%22mosaicOperation%22%3A%22MT_FIRST%22%7D&' \
+        #                       'pixelType=f32&f=image'.format(a=bbox, b=epoch)
+        self.usda_query_str = \
+            'f=image' \
+            '&bbox={}' \
+            '&imageSR=102100' \
+            '&format=tiff' \
+            '&mosaicRule=%7B%22mosaicMethod%22%3A%22esriMosaicNorthwest%22%2C%22mosaicOperation%22%3A%22MT_FIRST%22%2C%22sortField%22%3A%22%22%7D' \
+            '&pixelType=f32' \
+            '&bboxSR=102100' \
+            '&size=2048%2C2048'.format(self.bbox_str)
 
         for key, val in kwargs.items():
             self.__setattr__(key, val)
-
-        self.bounds_fmt = '{w},{s},{e},{n}'
 
     def get_image(self, state):
         """ Get NAIP imagery from states excluding Hawaii and Alaska
@@ -172,9 +179,7 @@ class ApfoNaip(NaipImage):
         """
 
         # naip_str = '{}_NAIP'.format(state)
-        query = self.usda_query_str  # .format(naip_str, self.bbox)
-        url = '{}{}'.format(self.naip_base_url, query)
-
+        url = '{}{}'.format(self.base_url, self.usda_query_str)
         req = get(url, verify=False, stream=True)
         if req.status_code != 200:
             raise ValueError('Bad response {} from NAIP API request \n {}.'.format(req.status_code, url))

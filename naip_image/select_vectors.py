@@ -1,5 +1,5 @@
 # ===============================================================================
-# Copyright 2018 dgketchum
+# Copyright 2021 dgketchum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import sys
 abspath = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(abspath)
 import shutil
+from random import shuffle
 
 from numpy import uint8
 from matplotlib import pyplot as plt
@@ -29,12 +30,13 @@ import rasterio.plot
 from rasterio.features import rasterize
 from fiona import open as fiona_open
 from descartes import PolygonPatch
-from geopandas import read_file, GeoDataFrame
-from pandas import DataFrame
+from geopandas import GeoDataFrame
 from shapely.geometry import Polygon
 from naip_image.naip import ApfoNaip
 
 TEMP_TIF = os.path.join(os.path.dirname(__file__), 'temp', 'temp_tile_geo.tif')
+
+ITYPE_MAP = {'F': 1, 'P': 2, 'S': 3}
 
 
 def convert_bytes(num):
@@ -57,7 +59,9 @@ def get_geometries(shp, n=100):
         for feat in src:
             if ct > n:
                 break
-            features.append((int(feat['properties']['ID']), feat['properties']['TYPE'], feat['geometry']))
+            features.append((int(feat['properties']['OBJECTID']),
+                             feat['properties']['IType'],
+                             feat['geometry']))
     print('{} features'.format(len(features)))
     return features
 
@@ -67,8 +71,9 @@ def get_naip_polygon(bbox):
                     [bbox[2], bbox[1]]])
 
 
-def get_training_scenes(geometries, instance_label=False, name_prefix='MT', out_dir=None,
-                        year=None, n=10, save_shp=False, feature_range=None):
+def get_training_scenes(geometries, name_prefix='MT', out_dir=None, year=None, n=10,
+                        save_shp=False, feature_range=None,
+                        buffer=15000.):
     ct = 0
 
     overview = os.path.join(out_dir, 'overview')
@@ -80,13 +85,15 @@ def get_training_scenes(geometries, instance_label=False, name_prefix='MT', out_
     if feature_range:
         geometries = geometries[feature_range[0]:feature_range[1]]
 
+    shuffle(geometries)
+
     for (id_, type_, g) in geometries:
         try:
             print('feature {}'.format(id_))
             g = Polygon(g['coordinates'][0])
-            naip_args = dict([('dst_crs', '4326'),
+            naip_args = dict([('dst_crs', '102100'),
                               ('centroid', (g.centroid.y, g.centroid.x)),
-                              ('buffer', 1000),
+                              ('buffer', buffer),
                               ('year', year)])
 
             naip = ApfoNaip(**naip_args)
@@ -110,6 +117,7 @@ def get_training_scenes(geometries, instance_label=False, name_prefix='MT', out_
             ax.set_ylim(naip_geometry.bounds[1], naip_geometry.bounds[3])
 
             name = '{}_{}'.format(name_prefix, str(id_).rjust(7, '0'))
+
             if save_shp:
                 geos = [Polygon(x[2]['coordinates'][0]) for x in vectors]
                 data = [(x[0], x[1]) for x in vectors]
@@ -122,27 +130,27 @@ def get_training_scenes(geometries, instance_label=False, name_prefix='MT', out_
             plt.close(fig)
 
             fs, unit = file_size(fig_name)
-            if fs < 200. and unit == 'KB':
+            if fs < 100. and unit == 'KB':
                 print(fs, unit)
                 os.remove(fig_name)
 
             else:
                 shutil.move(TEMP_TIF, os.path.join(image, '{}.tif'.format(name)))
-                naip_bool_name = os.path.join(labels, '{}.tif'.format(name))
+                out_label = os.path.join(labels, '{}.tif'.format(name))
 
                 meta = src.meta.copy()
                 meta.update(compress='lzw')
                 meta.update(nodata=0)
                 meta.update(count=1)
 
-                if instance_label:
-                    label_values = [(f[2], i) for i, f in enumerate(vectors)]
-                else:
-                    label_values = [(f[2], 1) for f in vectors]
+                label_values = [(f[2], ITYPE_MAP[f[1]]) for f in vectors]
 
-                with rasterio.open(naip_bool_name, 'w', **meta) as out:
-                    burned = rasterize(shapes=label_values, fill=0, dtype=uint8,
-                                       out_shape=(array.shape[1], array.shape[2]), transform=out.transform,
+                with rasterio.open(out_label, 'w', **meta) as out:
+                    burned = rasterize(shapes=label_values,
+                                       fill=0,
+                                       dtype=uint8,
+                                       out_shape=(array.shape[1], array.shape[2]),
+                                       transform=out.transform,
                                        all_touched=False)
                     out.write(burned, 1)
                 ct += 1
@@ -171,28 +179,22 @@ def clean_out_training_data(parent_dir):
 if __name__ == '__main__':
     out_data = None
     home = os.path.expanduser('~')
-    extraction = os.path.join(home, 'data', 'field_extraction')
-    if not os.path.exists(extraction):
-        extraction = os.path.join(home, 'field_extraction')
+    dir_ = os.path.join('/media/hdisk', 'irrigation_type')
+    fields = os.path.join(dir_, 'field_boundaries', 'test_fields')
+    images = os.path.join(dir_, 'images')
 
-    states = [('WA_CMICH.shp', 2017)]
+    states = [('mt_itype.shp', 2019)]
     for file_, year in states:
-        name_prefix = file_.strip('.shp')
-        out_data = os.path.join(extraction, 'field_data',
-                                'raw_data', 'states', name_prefix)
-        if not os.path.exists(out_data):
-            os.mkdir(out_data)
-        shape_dir = os.path.join(extraction, 'field_data', 'raw_shapefiles')
-        shapes = os.path.join(shape_dir, file_)
-        target_number = 4000
-        if not os.path.exists(shapes):
-            raise ValueError('{} does not exist'.format(shapes))
+        name_prefix = file_.split('_')[0]
+        out_data = os.path.join(images, name_prefix.upper())
 
-        # geos = get_geometries(shapes, n=target_number)
-        # get_training_scenes(geos, instance_label=True, name_prefix=name_prefix,
-        #                     out_dir=out_data, year=year,
-        #                     n=target_number, save_shp=False,
-        #                     feature_range=(166809, 170000))
-    tables = os.path.join(out_data)
-    clean_out_training_data(tables)
+        shapes = os.path.join(fields, file_)
+        target_number = 4000
+
+        geos = get_geometries(shapes, n=target_number)
+        get_training_scenes(geos, name_prefix=name_prefix, out_dir=out_data, year=year, n=target_number, save_shp=False,
+                            feature_range=None)
+
+    # tables = os.path.join(out_data)
+    # clean_out_training_data(tables)
 # ========================= EOF ====================================================================
