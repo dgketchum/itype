@@ -1,4 +1,5 @@
 import os
+from collections import OrderedDict
 from random import shuffle
 import fiona
 
@@ -12,6 +13,9 @@ def balance_features(shp, n_features=13000, out_file=None):
     with fiona.open(shp) as src:
         features = [f for f in src]
         meta = src.meta
+    meta['schema']['properties'] = OrderedDict([('FID', 'int:10'),
+                                                ('SPLIT', 'str:10'),
+                                                ('IType', 'str:10')])
     shuffle(features)
     for f in features:
         itype = f['properties']['IType']
@@ -19,10 +23,18 @@ def balance_features(shp, n_features=13000, out_file=None):
             continue
         else:
             d[itype].append(f)
+    ct = 1
     with fiona.open(out_file, 'w', **meta) as dst:
         for k, v in d.items():
             for f in v:
-                dst.write(f)
+                out_feat = {'type': 'Feature', 'properties':
+                    OrderedDict([('FID', ct),
+                                 ('SPLIT', f['properties']['SPLIT']),
+                                 ('IType', f['properties']['IType'])]),
+                            'geometry': f['geometry']}
+                dst.write(out_feat)
+                ct += 1
+
 
 
 if __name__ == '__main__':

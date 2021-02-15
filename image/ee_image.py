@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ===============================================================================
-
+import os
 import time
 import ee
 
@@ -28,21 +28,72 @@ lists = ee.List.repeat(list_, KERNEL_SIZE)
 KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 
-class EETrainingStack(object):
+class ITypeStack(object):
 
     def __init__(self, year, n_shards=10):
         self.year = year
         self.start, self.end = '{}-01-01'.format(year), '{}-12-31'.format(year)
         self.bounds = 'users/dgketchum/boundaries/MT'
-        self.points = 'users/dgketchum/itype/bvrhd_pts'
-        self.grid = 'users/dgketchum/itype/bvrhd_grd'
-        self.labels = 'users/dgketchum/itype/mt_test'
+        self.points = 'users/dgketchum/itype/mt_points'
+        self.grid = 'users/dgketchum/itype/mt_grid'
+        self.labels = 'users/dgketchum/itype/mt_itype'
+        self.basename = os.path.basename(self.labels)
         self.points_fc, self.features = None, None
         self.data_stack, self.image_stack = None, None
         self.shards = n_shards
         self.out_gs_bucket = 'itype'
         self.kernel = KERNEL
         self.task = None
+
+    def export_tfrecord(self):
+        self._build_data()
+        ct = 0
+        geometry_sample = None
+        for idx in range(self.points_fc.size().getInfo()):
+            point = ee.Feature(self.points_fc.get(idx))
+            geometry_sample = ee.ImageCollection([])
+
+            sample = self.data_stack.sample(
+                region=point.geometry(),
+                scale=1.0,
+                numPixels=1,
+                tileScale=16,
+                dropNulls=False)
+
+            geometry_sample = geometry_sample.merge(sample)
+            if (ct + 1) % self.shards == 0:
+                name_ = '{}_{}'.format(self.basename, str(idx).rjust(7, '0'))
+                self._table_task(geometry_sample, filename=name_)
+                geometry_sample = None
+                print('export {}'.format(name_))
+                exit()
+
+            ct += 1
+
+        if geometry_sample:
+            name_ = '{}_{}'.format(self.basename, str(idx).rjust(7, '0'))
+            self._table_task(geometry_sample, filename=name_)
+            print('export {}'.format(name_))
+            exit()
+
+    def export_geotiff(self):
+        self._build_data()
+        for idx in range(self.grid_fc.size().getInfo()):
+            name_ = '{}_{}'.format(self.basename, str(idx).rjust(7, '0'))
+            patch = ee.Feature(self.grid_fc.get(idx))
+            kwargs = {'image': self.image_stack,
+                      'bucket': self.out_gs_bucket,
+                      'description': name_,
+                      'fileNamePrefix': name_,
+                      'crs': 'EPSG:3857',
+                      'region': patch.geometry(),
+                      'scale': 1.0,
+                      'fileFormat': 'GeoTIFF',
+                      'maxPixels': 1e13}
+
+            self.task = ee.batch.Export.image.toCloudStorage(**kwargs)
+            print('export {}'.format(name_))
+            self._start_task()
 
     def _create_labels(self):
         class_labels = ee.Image().byte()
@@ -73,8 +124,12 @@ class EETrainingStack(object):
 
     def _build_data(self):
         roi = ee.FeatureCollection(self.bounds).geometry()
+
         points_fc = ee.FeatureCollection(self.points)
         self.points_fc = points_fc.toList(points_fc.size())
+
+        grid_fc = ee.FeatureCollection(self.grid)
+        self.grid_fc = grid_fc.toList(grid_fc.size())
 
         image_stack, features = self._create_image(roi, start=self.start, end=self.end)
 
@@ -86,55 +141,7 @@ class EETrainingStack(object):
         self.image_stack = image_stack.reproject(projection, None, 1.0)
         self.data_stack = image_stack.neighborhoodToArray(self.kernel)
 
-    def export_tfrecord(self):
-
-        ct = 0
-        geometry_sample = None
-        for idx in range(self.points_fc.size().getInfo()):
-            point = ee.Feature(self.points_fc.get(idx))
-            geometry_sample = ee.ImageCollection([])
-
-            sample = self.data_stack.sample(
-                region=point.geometry(),
-                scale=1.0,
-                numPixels=1,
-                tileScale=16,
-                dropNulls=False)
-
-            geometry_sample = geometry_sample.merge(sample)
-            if (ct + 1) % self.shards == 0:
-                name_ = '{}_{}'.format(str(self.year), idx)
-                self.export_tfr(geometry_sample, filename=name_)
-                geometry_sample = None
-            ct += 1
-        if geometry_sample:
-            name_ = '{}_{}'.format(str(self.year), idx)
-
-            self.export_tfr(geometry_sample, filename=name_)
-
-        print('exported {}, {} features'.format(self.year, ct))
-
-    def export_tif(self):
-        ct = 0
-        for idx in range(self.points_fc.size().getInfo()):
-            name_ = '{}'.format(ct)
-            patch = ee.Feature(self.points_fc.get(idx))
-            kwargs = {
-                'image': self.image_stack,
-                'bucket': self.out_gs_bucket,
-                'description': name_,
-                'fileNamePrefix': name_,
-                'crs': 'EPSG:3857',
-                'region': patch.geometry(),
-                'scale': 1.0,
-                'fileFormat': 'GeoTIFF',
-                'maxPixels': 1e13
-            }
-
-        self.task = ee.batch.Export.image.toCloudStorage(kwargs)
-        self.start_task()
-
-    def table_task(self, sample, filename):
+    def _table_task(self, sample, filename):
         self.task = ee.batch.Export.table.toCloudStorage(
             collection=sample,
             bucket=GS_BUCKET,
@@ -142,9 +149,9 @@ class EETrainingStack(object):
             fileNamePrefix=filename,
             fileFormat='TFRecord',
             selectors=self.features)
-        self.start_task()
+        self._start_task()
 
-    def start_task(self):
+    def _start_task(self):
         try:
             self.task.start()
         except ee.ee_exception.EEException:
@@ -154,6 +161,6 @@ class EETrainingStack(object):
 
 
 if __name__ == '__main__':
-    stack = EETrainingStack(2019)
-    stack.export_tif()
+    stack = ITypeStack(2019)
+    stack.export_tfrecord()
 # ========================= EOF ====================================================================

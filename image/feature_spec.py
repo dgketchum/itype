@@ -8,11 +8,12 @@ Feature spec for reading/writing tf records
 DEFAULT_VALUE = tf.ones([512, 512], dtype=tf.float32) * -1.
 
 features_dict = OrderedDict(
-    [('0_blue_mean', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
-     ('0_green_mean', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
-     ('0_red_mean', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
-     ('0_nir_mean', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
-     ('0_swir1_mean', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE))])
+    [('R', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
+     ('G', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
+     ('B', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
+     ('N', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
+     ('std_ndvi', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
+     ('mx_ndvi', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE))])
 
 
 def features_dict():

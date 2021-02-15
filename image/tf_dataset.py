@@ -1,11 +1,11 @@
 import os
 import tensorflow as tf
 
-from data_preproc import feature_spec
+from image import feature_spec
 
 MODE = 'irr'
-FEATURES_DICT = feature_spec.features_dict(kind='interp')
-FEATURES = feature_spec.features(kind='interp')
+FEATURES_DICT = feature_spec.features_dict()
+FEATURES = feature_spec.features()
 step_, length_ = 7, len(FEATURES)
 NDVI_INDICES = [(x, y) for x, y in zip(range(2, length_, step_), range(3, length_, step_))]
 
