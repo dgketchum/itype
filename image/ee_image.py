@@ -30,18 +30,26 @@ KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 class ITypeStack(object):
 
-    def __init__(self, year, n_shards=10):
+    def __init__(self, year, n_shards=10, split='train'):
+
         self.year = year
         self.start, self.end = '{}-01-01'.format(year), '{}-12-31'.format(year)
+        self.split = split
+
         self.bounds = 'users/dgketchum/boundaries/MT'
-        self.points = 'users/dgketchum/itype/mt_points'
-        self.grid = 'users/dgketchum/itype/mt_grid'
-        self.labels = 'users/dgketchum/itype/mt_itype'
-        self.basename = os.path.basename(self.labels)
+        self.points = 'users/dgketchum/itype/mt_pts'
+        self.grid = 'users/dgketchum/itype/mt_shards'
+        self.irr_labels = 'users/dgketchum/itype/mt_itype'
+        self.dryland_labels = 'users/dgketchum/itype/dryland'
+        self.uncult_labels = 'users/dgketchum/itype/uncultivated'
+        self.wetland_labels = 'users/dgketchum/itype/wetlands'
+        self.projection = ee.Projection('EPSG:3857')
+
+        self.basename = os.path.basename(self.irr_labels)
         self.points_fc, self.features = None, None
         self.data_stack, self.image_stack = None, None
         self.shards = n_shards
-        self.out_gs_bucket = 'itype'
+        self.out_gs_bucket = GS_BUCKET
         self.kernel = KERNEL
         self.task = None
 
@@ -51,6 +59,7 @@ class ITypeStack(object):
         geometry_sample = None
         for idx in range(self.points_fc.size().getInfo()):
             point = ee.Feature(self.points_fc.get(idx))
+            print(point.getInfo()['properties']['FID'])
             geometry_sample = ee.ImageCollection([])
 
             sample = self.data_stack.sample(
@@ -62,24 +71,21 @@ class ITypeStack(object):
 
             geometry_sample = geometry_sample.merge(sample)
             if (ct + 1) % self.shards == 0:
-                name_ = '{}_{}'.format(self.basename, str(idx).rjust(7, '0'))
+                name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
                 self._table_task(geometry_sample, filename=name_)
                 geometry_sample = None
                 print('export {}'.format(name_))
-                exit()
-
             ct += 1
 
         if geometry_sample:
-            name_ = '{}_{}'.format(self.basename, str(idx).rjust(7, '0'))
+            name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
             self._table_task(geometry_sample, filename=name_)
             print('export {}'.format(name_))
-            exit()
 
     def export_geotiff(self):
         self._build_data()
         for idx in range(self.grid_fc.size().getInfo()):
-            name_ = '{}_{}'.format(self.basename, str(idx).rjust(7, '0'))
+            name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
             patch = ee.Feature(self.grid_fc.get(idx))
             kwargs = {'image': self.image_stack,
                       'bucket': self.out_gs_bucket,
@@ -96,14 +102,24 @@ class ITypeStack(object):
             self._start_task()
 
     def _create_labels(self):
-        class_labels = ee.Image().byte()
-        flood = ee.FeatureCollection(self.labels).filter(ee.Filter.eq("IType", 'F'))
-        pivot = ee.FeatureCollection(self.labels).filter(ee.Filter.eq("IType", 'P'))
-        sprinkler = ee.FeatureCollection(self.labels).filter(ee.Filter.eq("IType", 'S'))
+
+        class_labels = ee.Image(0).byte()
+        flood = ee.FeatureCollection(self.irr_labels).filter(ee.Filter.eq("IType", 'F'))
+        sprinkler = ee.FeatureCollection(self.irr_labels).filter(ee.Filter.eq("IType", 'S'))
+        pivot = ee.FeatureCollection(self.irr_labels).filter(ee.Filter.eq("IType", 'P'))
+        dryland = ee.FeatureCollection(self.dryland_labels)
+        uncultivated = ee.FeatureCollection(self.uncult_labels).merge(ee.FeatureCollection(self.wetland_labels))
+
+        class_labels = class_labels.paint(uncultivated, 5)
+        class_labels = class_labels.paint(dryland, 4)
+
         class_labels = class_labels.paint(flood, 1)
-        class_labels = class_labels.paint(pivot, 2)
-        class_labels = class_labels.paint(sprinkler, 3)
-        return class_labels
+        class_labels = class_labels.paint(sprinkler, 2)
+        class_labels = class_labels.paint(pivot, 3)
+
+        label = class_labels.rename('itype')
+
+        return label
 
     def _create_image(self, roi, start, end):
         def mask(x):
@@ -124,28 +140,29 @@ class ITypeStack(object):
 
     def _build_data(self):
         roi = ee.FeatureCollection(self.bounds).geometry()
-
-        points_fc = ee.FeatureCollection(self.points)
+        # bad examples: 1164
+        points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('FID', 1164))
+        # points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('SPLIT', split))
+        #TODO: replace filter by split
         self.points_fc = points_fc.toList(points_fc.size())
 
-        grid_fc = ee.FeatureCollection(self.grid)
+        grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
         self.grid_fc = grid_fc.toList(grid_fc.size())
 
         image_stack, features = self._create_image(roi, start=self.start, end=self.end)
 
         i_labels = self._create_labels()
         image_stack = ee.Image.cat([image_stack, i_labels]).float()
-        self.features = features + ['label']
+        self.features = features + ['itype']
 
-        projection = ee.Projection('EPSG:3857')
-        self.image_stack = image_stack.reproject(projection, None, 1.0)
+        self.image_stack = image_stack.reproject(self.projection, None, 1.0)
         self.data_stack = image_stack.neighborhoodToArray(self.kernel)
 
     def _table_task(self, sample, filename):
         self.task = ee.batch.Export.table.toCloudStorage(
             collection=sample,
-            bucket=GS_BUCKET,
             description=filename,
+            bucket=GS_BUCKET,
             fileNamePrefix=filename,
             fileFormat='TFRecord',
             selectors=self.features)
@@ -161,6 +178,7 @@ class ITypeStack(object):
 
 
 if __name__ == '__main__':
-    stack = ITypeStack(2019)
-    stack.export_tfrecord()
+    for split in ['train']:
+        stack = ITypeStack(2019, split=split, n_shards=100)
+        stack.export_tfrecord()
 # ========================= EOF ====================================================================
