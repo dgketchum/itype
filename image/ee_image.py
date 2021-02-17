@@ -30,7 +30,7 @@ KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 class ITypeStack(object):
 
-    def __init__(self, year, n_shards=10, split='train'):
+    def __init__(self, year, split='train'):
 
         self.year = year
         self.start, self.end = '{}-01-01'.format(year), '{}-12-31'.format(year)
@@ -38,7 +38,7 @@ class ITypeStack(object):
 
         self.bounds = 'users/dgketchum/boundaries/MT'
         self.points = 'users/dgketchum/itype/mt_pts'
-        self.grid = 'users/dgketchum/itype/mt_shards'
+        self.grid = 'users/dgketchum/itype/mt_grid'
         self.irr_labels = 'users/dgketchum/itype/mt_itype'
         self.dryland_labels = 'users/dgketchum/itype/dryland'
         self.uncult_labels = 'users/dgketchum/itype/uncultivated'
@@ -48,12 +48,11 @@ class ITypeStack(object):
         self.basename = os.path.basename(self.irr_labels)
         self.points_fc, self.features = None, None
         self.data_stack, self.image_stack = None, None
-        self.shards = n_shards
         self.out_gs_bucket = GS_BUCKET
         self.kernel = KERNEL
         self.task = None
 
-    def export_tfrecord(self):
+    def export_tfrecord(self, n_shards):
         self._build_data()
         ct = 0
         geometry_sample = None
@@ -65,12 +64,11 @@ class ITypeStack(object):
             sample = self.data_stack.sample(
                 region=point.geometry(),
                 scale=1.0,
-                numPixels=1,
-                tileScale=16,
+                tileScale=2,
                 dropNulls=False)
 
             geometry_sample = geometry_sample.merge(sample)
-            if (ct + 1) % self.shards == 0:
+            if (ct + 1) % n_shards == 0:
                 name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
                 self._table_task(geometry_sample, filename=name_)
                 geometry_sample = None
@@ -91,9 +89,9 @@ class ITypeStack(object):
                       'bucket': self.out_gs_bucket,
                       'description': name_,
                       'fileNamePrefix': name_,
-                      'crs': 'EPSG:3857',
+                      'crs': 'EPSG:4326',
                       'region': patch.geometry(),
-                      'scale': 1.0,
+                      'dimensions': '1536x1536',
                       'fileFormat': 'GeoTIFF',
                       'maxPixels': 1e13}
 
@@ -141,12 +139,11 @@ class ITypeStack(object):
     def _build_data(self):
         roi = ee.FeatureCollection(self.bounds).geometry()
         # bad examples: 1164
-        points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('FID', 1164))
-        # points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('SPLIT', split))
-        #TODO: replace filter by split
+        points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('SPLIT', split))
         self.points_fc = points_fc.toList(points_fc.size())
 
-        grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
+        # grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
+        grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('FID', 132595))
         self.grid_fc = grid_fc.toList(grid_fc.size())
 
         image_stack, features = self._create_image(roi, start=self.start, end=self.end)
@@ -178,7 +175,7 @@ class ITypeStack(object):
 
 
 if __name__ == '__main__':
-    for split in ['train']:
-        stack = ITypeStack(2019, split=split, n_shards=100)
-        stack.export_tfrecord()
+    for split in ['train', 'test', 'valid']:
+        stack = ITypeStack(2019, split=split)
+        stack.export_geotiff()
 # ========================= EOF ====================================================================

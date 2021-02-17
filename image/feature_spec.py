@@ -7,27 +7,28 @@ Feature spec for reading/writing tf records
 
 DEFAULT_VALUE = tf.ones([512, 512], dtype=tf.float32) * -1.
 
-features_dict = OrderedDict(
+feature_spec = OrderedDict(
     [('R', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
      ('G', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
      ('B', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
      ('N', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
      ('std_ndvi', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
-     ('mx_ndvi', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE))])
+     ('mx_ndvi', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE)),
+     ('itype', tf.io.FixedLenFeature(shape=[512, 512], dtype=tf.float32, default_value=DEFAULT_VALUE))],)
 
 
 def features_dict():
-    print('PROCESSING {} BANDS'.format(len(features_dict.keys())))
-    return features_dict
+    print('PROCESSING {} BANDS'.format(len(feature_spec.keys())))
+    return feature_spec
 
 
 def bands():
-    bands = list(features_dict.keys())
+    bands = list(feature_spec.keys())
     return bands
 
 
 def features():
-    features = list(features_dict.keys())[:-1]
+    features = list(feature_spec.keys())[:-1]
     return features
 
 

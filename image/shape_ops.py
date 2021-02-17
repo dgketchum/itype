@@ -27,14 +27,12 @@ def balance_features(shp, n_features=13000, out_file=None):
     with fiona.open(out_file, 'w', **meta) as dst:
         for k, v in d.items():
             for f in v:
-                out_feat = {'type': 'Feature', 'properties':
-                    OrderedDict([('FID', ct),
-                                 ('SPLIT', f['properties']['SPLIT']),
-                                 ('IType', f['properties']['IType'])]),
+                out_feat = {'type': 'Feature', 'properties': OrderedDict([('FID', ct),
+                                                                          ('SPLIT', f['properties']['SPLIT']),
+                                                                          ('IType', f['properties']['IType'])]),
                             'geometry': f['geometry']}
                 dst.write(out_feat)
                 ct += 1
-
 
 
 if __name__ == '__main__':

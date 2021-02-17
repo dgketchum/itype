@@ -3,11 +3,10 @@ import tensorflow as tf
 
 from image import feature_spec
 
-MODE = 'irr'
+MODE = 'itype'
+N_CLASSES = 5
 FEATURES_DICT = feature_spec.features_dict()
 FEATURES = feature_spec.features()
-step_, length_ = 7, len(FEATURES)
-NDVI_INDICES = [(x, y) for x, y in zip(range(2, length_, step_), range(3, length_, step_))]
 
 
 def make_test_dataset(root, pattern='*gz'):
@@ -30,7 +29,7 @@ def get_dataset(pattern):
                                       num_parallel_reads=8)
 
     dataset = dataset.map(parse_tfrecord, num_parallel_calls=5)
-    to_tup = to_tuple(add_ndvi=False)
+    to_tup = to_tuple()
     dataset = dataset.map(to_tup, num_parallel_calls=5)
     return dataset
 
@@ -47,7 +46,7 @@ def parse_tfrecord(example_proto):
     return parsed
 
 
-def to_tuple(add_ndvi):
+def to_tuple():
     """
     Function to convert a dictionary of tensors to a tuple of (inputs, outputs).
     Turn the tensors returned by parse_tfrecord into a stack in HWC shape.
@@ -61,50 +60,14 @@ def to_tuple(add_ndvi):
         features_list = [inputs.get(key) for key in FEATURES]
         stacked = tf.stack(features_list, axis=0)
         # Convert from CHW to HWC
-        stacked = tf.transpose(stacked, [1, 2, 0])  # TC scaled somehow: * 0.0001
-        if add_ndvi:
-            image_stack = add_ndvi_raster(stacked)
-        else:
-            image_stack = stacked
+        stacked = tf.transpose(stacked, [1, 2, 0])
+        image_stack = stacked
         # 'constant' is the label for label raster.
-        labels = one_hot(inputs.get(MODE), n_classes=4)
+        labels = one_hot(inputs.get(MODE), n_classes=N_CLASSES)
         labels = tf.cast(labels, tf.int32)
         return image_stack, labels
 
     return to_tup
-
-
-def add_ndvi_raster(image_stack):
-    '''
-    These indices are hardcoded, and taken from the
-    sorted keys in feature_spec.
-    (NIR - Red) / (NIR + Red)
-        2 0_nir_mean
-        3 0_red_mean
-        8 1_nir_mean
-        9 1_red_mean
-        14 2_nir_mean
-        15 2_red_mean
-        20 3_nir_mean
-        21 3_red_mean
-        26 4_nir_mean
-        27 4_red_mean
-        32 5_nir_mean
-        33 5_red_mean
-    '''
-    out = []
-    for nir_idx, red_idx in NDVI_INDICES:
-        # Add a small constant in the denominator to ensure
-        # NaNs don't occur because of missing data. Missing
-        # data (i.e. Landsat 7 scan line failure) is represented as 0
-        # in TFRecord files. Adding \{epsilon} will barely
-        # change the non-missing data, and will make sure missing data
-        # is still 0 when it's fed into the model.
-        ndvi = (image_stack[:, :, nir_idx] - image_stack[:, :, red_idx]) / \
-               (image_stack[:, :, nir_idx] + image_stack[:, :, red_idx] + 1e-8)
-        out.append(ndvi)
-    stack = tf.concat((image_stack, tf.stack(out, axis=-1)), axis=-1)
-    return stack
 
 
 def one_hot(labels, n_classes):
