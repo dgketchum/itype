@@ -83,8 +83,9 @@ class ITypeStack(object):
     def export_geotiff(self):
         self._build_data()
         for idx in range(self.grid_fc.size().getInfo()):
-            name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
             patch = ee.Feature(self.grid_fc.get(idx))
+            fid = patch.getInfo()['properties']['FID']
+            name_ = '{}_{}'.format(self.split, str(fid).rjust(7, '0'))
             kwargs = {'image': self.image_stack,
                       'bucket': self.out_gs_bucket,
                       'description': name_,
@@ -142,8 +143,8 @@ class ITypeStack(object):
         points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('SPLIT', split))
         self.points_fc = points_fc.toList(points_fc.size())
 
-        # grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
-        grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('FID', 132595))
+        grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
+        # grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('FID', 132595))
         self.grid_fc = grid_fc.toList(grid_fc.size())
 
         image_stack, features = self._create_image(roi, start=self.start, end=self.end)
