@@ -38,12 +38,12 @@ def write_tfr_to_local(recs, out_dir, split, pattern='*gz', start_count=0, tar_c
         classes = np.array([np.any(labels[:, :, i]) for i in range(N_CLASSES)])
         obj_ct += classes
         features = features.numpy().squeeze()
-        if np.any(classes):
+
+        if not np.any(classes):
             no_label_ct += 1
-            continue
         if np.any(features[:, 0] == -1.0):
             inval_ct += 1
-            continue
+
         count += 1
 
         if plot:

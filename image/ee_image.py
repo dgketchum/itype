@@ -30,8 +30,9 @@ KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 class ITypeStack(object):
 
-    def __init__(self, year, split='train'):
+    def __init__(self, year, split='train', fid=None):
 
+        self.fid = fid
         self.year = year
         self.start, self.end = '{}-01-01'.format(year), '{}-12-31'.format(year)
         self.split = split
@@ -52,13 +53,13 @@ class ITypeStack(object):
         self.kernel = KERNEL
         self.task = None
 
-    def export_tfrecord(self, n_shards):
+    def export_tfrecord(self, n_shards=10):
         self._build_data()
         ct = 0
         geometry_sample = None
         for idx in range(self.points_fc.size().getInfo()):
             point = ee.Feature(self.points_fc.get(idx))
-            print(point.getInfo()['properties']['FID'])
+            # print(point.getInfo()['properties']['FID'])
             geometry_sample = ee.ImageCollection([])
 
             sample = self.data_stack.sample(
@@ -79,6 +80,7 @@ class ITypeStack(object):
             name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
             self._table_task(geometry_sample, filename=name_)
             print('export {}'.format(name_))
+        exit()
 
     def export_geotiff(self):
         self._build_data()
@@ -102,7 +104,7 @@ class ITypeStack(object):
 
     def _create_labels(self):
 
-        class_labels = ee.Image(0).byte()
+        class_labels = ee.Image(0).byte().rename('itype')
         flood = ee.FeatureCollection(self.irr_labels).filter(ee.Filter.eq("IType", 'F'))
         sprinkler = ee.FeatureCollection(self.irr_labels).filter(ee.Filter.eq("IType", 'S'))
         pivot = ee.FeatureCollection(self.irr_labels).filter(ee.Filter.eq("IType", 'P'))
@@ -116,9 +118,7 @@ class ITypeStack(object):
         class_labels = class_labels.paint(sprinkler, 2)
         class_labels = class_labels.paint(pivot, 3)
 
-        label = class_labels.rename('itype')
-
-        return label
+        return class_labels
 
     def _create_image(self, roi, start, end):
         def mask(x):
@@ -138,13 +138,17 @@ class ITypeStack(object):
         return naip, band_names
 
     def _build_data(self):
-        roi = ee.FeatureCollection(self.bounds).geometry()
-        # bad examples: 1164
-        points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('SPLIT', split))
-        self.points_fc = points_fc.toList(points_fc.size())
 
-        grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
-        # grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('FID', 132595))
+        roi = ee.FeatureCollection(self.bounds).geometry()
+
+        if self.fid:
+            points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('FID', self.fid))
+            grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('FID', self.fid))
+        else:
+            points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('SPLIT', split))
+            grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
+
+        self.points_fc = points_fc.toList(points_fc.size())
         self.grid_fc = grid_fc.toList(grid_fc.size())
 
         image_stack, features = self._create_image(roi, start=self.start, end=self.end)
@@ -177,6 +181,6 @@ class ITypeStack(object):
 
 if __name__ == '__main__':
     for split in ['train', 'test', 'valid']:
-        stack = ITypeStack(2019, split=split)
-        stack.export_geotiff()
+        stack = ITypeStack(2019, split=split, fid=11315)
+        stack.export_tfrecord()
 # ========================= EOF ====================================================================
