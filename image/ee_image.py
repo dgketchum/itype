@@ -40,7 +40,7 @@ class ITypeStack(object):
         self.bounds = 'users/dgketchum/boundaries/MT'
         self.points = 'users/dgketchum/itype/mt_pts'
         self.grid = 'users/dgketchum/itype/mt_grid'
-        self.irr_labels = 'users/dgketchum/itype/mt_itype'
+        self.irr_labels = 'users/dgketchum/itype/mt_itype_2019'
         self.dryland_labels = 'users/dgketchum/itype/dryland'
         self.uncult_labels = 'users/dgketchum/itype/uncultivated'
         self.wetland_labels = 'users/dgketchum/itype/wetlands'
