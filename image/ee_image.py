@@ -181,6 +181,6 @@ class ITypeStack(object):
 
 if __name__ == '__main__':
     for split in ['train', 'test', 'valid']:
-        stack = ITypeStack(2019, split=split, fid=11315)
+        stack = ITypeStack(2019, split=split)
         stack.export_tfrecord()
 # ========================= EOF ====================================================================

@@ -1,25 +1,45 @@
 import os
 from collections import OrderedDict
-from random import shuffle
+from random import shuffle, random
 import fiona
+from shapely.geometry import shape
 
 
-def balance_features(shp, n_features=13000, out_file=None):
+# TODO: write a function to just tack on new grid features by checking for duplicate geometry
+
+
+def balance_features(grids, n_features=13000, out_file=None):
     d = {'F': [],
          'S': [],
          'P': [],
          'NI': [],
          'NC': []}
-    with fiona.open(shp) as src:
-        features = [f for f in src]
-        meta = src.meta
+    first = True
+    dup = 0
+    features, centroids = [], []
+    for shp in grids:
+        with fiona.open(shp) as src:
+            if first:
+                [features.append(f) for f in src]
+                [centroids.append(shape(c['geometry']).centroid.wkb_hex) for c in src]
+                meta = src.meta
+                first = False
+            else:
+                for f in src:
+                    c = shape(f['geometry']).centroid.wkb_hex
+                    if c not in centroids:
+                        features.append(f)
+                        centroids.append(c)
+                    else:
+                        dup += 1
+
     meta['schema']['properties'] = OrderedDict([('FID', 'int:10'),
                                                 ('SPLIT', 'str:10'),
                                                 ('IType', 'str:10')])
     shuffle(features)
     for f in features:
         itype = f['properties']['IType']
-        if len(d[itype]) >= n_features:
+        if itype in ['F', 'NI', 'NC'] and len(d[itype]) >= n_features:
             continue
         else:
             d[itype].append(f)
@@ -27,17 +47,26 @@ def balance_features(shp, n_features=13000, out_file=None):
     with fiona.open(out_file, 'w', **meta) as dst:
         for k, v in d.items():
             for f in v:
-                out_feat = {'type': 'Feature', 'properties': OrderedDict([('FID', ct),
-                                                                          ('SPLIT', f['properties']['SPLIT']),
-                                                                          ('IType', f['properties']['IType'])]),
+                r = random()
+                if r <= 0.6:
+                    split = 'train'
+                if 0.6 < r <= 0.8:
+                    split = 'test'
+                if r > 0.8:
+                    split = 'valid'
+                out_feat = {'type': 'Feature',
+                            'properties': OrderedDict([('FID', ct),
+                                                       ('SPLIT', split),
+                                                       ('IType', f['properties']['IType'])]),
                             'geometry': f['geometry']}
                 dst.write(out_feat)
                 ct += 1
 
 
 if __name__ == '__main__':
-    d = '/media/hdisk/itype/grid'
-    in_ = os.path.join(d, 'shards_5class.shp')
-    out_ = os.path.join(d, 'balanced_shards.shp')
-    balance_features(in_, n_features=13800, out_file=out_)
+    in_ = '/media/hdisk/itype/alt_grid/'
+    _shapes = ['itype_grid.shp', 'wetlands_grid.shp', 'dryland_grid.shp']
+    _files = [os.path.join(in_, s) for s in _shapes]
+    out_ = '/media/hdisk/itype/alt_grid/mt_grid_balanced.shp'
+    balance_features(_files, n_features=5000, out_file=out_)
 # ========================= EOF ====================================================================
