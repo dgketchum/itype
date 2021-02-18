@@ -15,7 +15,10 @@
 # ===============================================================================
 import os
 import time
+
 import ee
+from google.cloud import storage
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = '/home/dgketchum/ssebop-montana-57d2b4da4339.json'
 
 ee.Initialize()
 
@@ -49,7 +52,7 @@ class ITypeStack(object):
         self.basename = os.path.basename(self.irr_labels)
         self.points_fc, self.features = None, None
         self.data_stack, self.image_stack = None, None
-        self.out_gs_bucket = GS_BUCKET
+        self.gcs_bucket = GS_BUCKET
         self.kernel = KERNEL
         self.task = None
 
@@ -57,6 +60,7 @@ class ITypeStack(object):
         self._build_data()
         ct = 0
         geometry_sample = None
+        # TODO: check bucket contents
         for idx in range(self.points_fc.size().getInfo()):
             point = ee.Feature(self.points_fc.get(idx))
             # print(point.getInfo()['properties']['FID'])
@@ -82,14 +86,20 @@ class ITypeStack(object):
             print('export {}'.format(name_))
         exit()
 
-    def export_geotiff(self):
+    def export_geotiff(self, overwrite=False):
         self._build_data()
+        if not overwrite:
+            bucket_contents = self._get_bucket_contents()['']
         for idx in range(self.grid_fc.size().getInfo()):
             patch = ee.Feature(self.grid_fc.get(idx))
             fid = patch.getInfo()['properties']['FID']
             name_ = '{}_{}'.format(self.split, str(fid).rjust(7, '0'))
+            if not overwrite:
+                if '{}.tif'.format(name_) in bucket_contents:
+                    print('{} exists, skippping'.format(name_))
+                    continue
             kwargs = {'image': self.image_stack,
-                      'bucket': self.out_gs_bucket,
+                      'bucket': self.gcs_bucket,
                       'description': name_,
                       'fileNamePrefix': name_,
                       'crs': 'EPSG:4326',
@@ -119,6 +129,18 @@ class ITypeStack(object):
         class_labels = class_labels.paint(pivot, 3)
 
         return class_labels
+
+    def _get_bucket_contents(self):
+        dct = {}
+        client = storage.Client()
+        for blob in client.list_blobs(self.gcs_bucket):
+            dirname = os.path.dirname(blob.name)
+            b_name = os.path.basename(blob.name)
+            if dirname not in dct.keys():
+                dct[dirname] = [b_name]
+            else:
+                dct[dirname].append(b_name)
+        return dct
 
     def _create_image(self, roi, start, end):
         def mask(x):
@@ -182,5 +204,5 @@ class ITypeStack(object):
 if __name__ == '__main__':
     for split in ['train', 'test', 'valid']:
         stack = ITypeStack(2019, split=split)
-        stack.export_tfrecord()
+        stack.export_geotiff(overwrite=True)
 # ========================= EOF ====================================================================

@@ -5,9 +5,6 @@ import fiona
 from shapely.geometry import shape
 
 
-# TODO: write a function to just tack on new grid features by checking for duplicate geometry
-
-
 def balance_features(grids, n_features=13000, out_file=None):
     d = {'F': [],
          'S': [],
@@ -64,9 +61,9 @@ def balance_features(grids, n_features=13000, out_file=None):
 
 
 if __name__ == '__main__':
-    in_ = '/media/hdisk/itype/alt_grid/'
-    _shapes = ['itype_grid.shp', 'wetlands_grid.shp', 'dryland_grid.shp']
+    in_ = '/media/hdisk/itype/grid/grid_2019'
+    _shapes = ['mt_itype_grid_2019.shp', 'wetlands_grid.shp', 'dryland_grid.shp']
     _files = [os.path.join(in_, s) for s in _shapes]
-    out_ = '/media/hdisk/itype/alt_grid/mt_grid_balanced.shp'
-    balance_features(_files, n_features=5000, out_file=out_)
+    out_ = os.path.join(in_, 'mt_grid_bal_2019.shp')
+    balance_features(_files, n_features=5300, out_file=out_)
 # ========================= EOF ====================================================================
