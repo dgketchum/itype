@@ -89,7 +89,7 @@ class ITypeStack(object):
     def export_geotiff(self, overwrite=False):
         self._build_data()
         if not overwrite:
-            bucket_contents = self._get_bucket_contents()['']
+            bucket_contents = self._get_bucket_contents()
         for idx in range(self.grid_fc.size().getInfo()):
             patch = ee.Feature(self.grid_fc.get(idx))
             fid = patch.getInfo()['properties']['FID']
@@ -140,7 +140,8 @@ class ITypeStack(object):
                 dct[dirname] = [b_name]
             else:
                 dct[dirname].append(b_name)
-        return dct
+        l = [x.split('.')[0] for x in dct['']]
+        return l
 
     def _create_image(self, roi, start, end):
         def mask(x):
@@ -202,7 +203,7 @@ class ITypeStack(object):
 
 
 if __name__ == '__main__':
-    for split in ['train', 'test', 'valid']:
+    for split in ['valid']:
         stack = ITypeStack(2019, split=split)
-        stack.export_geotiff(overwrite=True)
+        stack.export_geotiff(overwrite=False)
 # ========================= EOF ====================================================================
