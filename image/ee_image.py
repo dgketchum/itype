@@ -56,36 +56,6 @@ class ITypeStack(object):
         self.kernel = KERNEL
         self.task = None
 
-    def export_tfrecord(self, n_shards=10):
-        self._build_data()
-        ct = 0
-        geometry_sample = None
-        # TODO: check bucket contents
-        for idx in range(self.points_fc.size().getInfo()):
-            point = ee.Feature(self.points_fc.get(idx))
-            # print(point.getInfo()['properties']['FID'])
-            geometry_sample = ee.ImageCollection([])
-
-            sample = self.data_stack.sample(
-                region=point.geometry(),
-                scale=1.0,
-                tileScale=2,
-                dropNulls=False)
-
-            geometry_sample = geometry_sample.merge(sample)
-            if (ct + 1) % n_shards == 0:
-                name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
-                self._table_task(geometry_sample, filename=name_)
-                geometry_sample = None
-                print('export {}'.format(name_))
-            ct += 1
-
-        if geometry_sample:
-            name_ = '{}_{}'.format(self.split, str(idx).rjust(7, '0'))
-            self._table_task(geometry_sample, filename=name_)
-            print('export {}'.format(name_))
-        exit()
-
     def export_geotiff(self, overwrite=False):
         self._build_data()
         if not overwrite:
