@@ -10,10 +10,10 @@ import torch.nn as nn
 from learning.focal_loss import FocalLoss
 from learning.weight_init import weight_init
 from learning.metrics import confusion_matrix_analysis, get_conf_matrix
+
 from models.model_init import get_model
-from data_load.data_loader import get_loaders
+from image.data import get_loaders
 from configure import get_config
-from utils import recursive_todevice
 
 TIME_START = datetime.now()
 
@@ -22,21 +22,12 @@ def train_epoch(model, optimizer, criterion, loader, config):
     ts = datetime.now()
     device = torch.device(config['device'])
     loss = None
-    for i, (x, y, g) in enumerate(loader):
-        x = recursive_todevice(x, device)
-        if config['model'] == 'clstm':
-            y = y.argmax(dim=1).to(device)
-            optimizer.zero_grad()
-            out, att = model(x)
-            pred = out[0][0]
-            loss = criterion(pred, y)
-
-        else:
-            y = y.to(device)
-            optimizer.zero_grad()
-            x = torch.squeeze(x)
-            out, att = model(x)
-            loss = criterion(out, y)
+    for i, (x, y) in enumerate(loader):
+        x = x.to(device)
+        y = y.to(device)
+        optimizer.zero_grad()
+        out = model(x)
+        loss = criterion(out, y)
 
         loss.backward()
         optimizer.step()
@@ -54,29 +45,17 @@ def evaluate_epoch(model, criterion, loader, config, mode='valid'):
     n_class = config['num_classes']
     confusion = torch.tensor(np.zeros((n_class, n_class))).to(device)
 
-    for i, (x, y, g) in enumerate(loader):
-        x = recursive_todevice(x, device)
-        if config['model'] == 'clstm':
-            mask = y.sum(1) > 0
-            y = y.argmax(dim=1).to(device)
-            with torch.no_grad():
-                out, att = model(x)
-                pred = out[0][0]
-                loss = criterion(pred, y)
-                pred = torch.argmax(pred, dim=1)
-                confusion += get_conf_matrix(y[mask], pred[mask], n_class, device)
-        else:
-            y = y.squeeze().to(device)
-            mask = (y > 0).flatten()
-            x = x.squeeze()
-            with torch.no_grad():
-                pred, att = model(x)
-                loss = criterion(pred, y)
-                pred = torch.argmax(pred, dim=1)
-                if config['batch_size'] > 1:
-                    y = y.flatten()
-                confusion += get_conf_matrix(y[mask], pred[mask], config['num_classes'], device)
+    for i, (x, y) in enumerate(loader):
+        x = x.to(device)
+        y = y.to(device)
+        mask = y.sum(1) > 0
+        with torch.no_grad():
+            out = model(x)
+            loss = criterion(out, y)
+            pred = torch.argmax(out, dim=1)
+            confusion += get_conf_matrix(y[mask], pred[mask], n_class, device)
 
+    # TODO: fix conf mat, it's not making sense, needs batched
     per_class, overall = confusion_matrix_analysis(confusion)
     t_delta = datetime.now() - ts
     print('Evaluation Loss: {:.4f}, IOU: {:.4f}, Precision {:.4f}, Recall {:.4f}, F1 Score {:.2f}'
@@ -169,7 +148,7 @@ def train(config):
 
 
 if __name__ == '__main__':
-    config = get_config('clstm', mode='irr')
+    config = get_config('unet')
     train(config)
 
 # ========================================================================================

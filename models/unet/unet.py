@@ -15,7 +15,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
 class UNet(nn.Module):
     def __init__(self, n_channels, n_classes, bilinear=True):
         super(UNet, self).__init__()

@@ -24,11 +24,14 @@ def write_pth_subsets(in_, _out):
     files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.tif')]
     ct, no_label = 0, 0
     for j, file_ in enumerate(files_):
-        features, label = read_tif(file_)
+        try:
+            features, label = read_tif(file_)
+        except TypeError:
+            continue
         sub_f, sub_l = tile(features), tile(label)
         for f, l in zip(sub_f, sub_l):
             if np.any(l):
-                stack = np.concatenate([f, l], axis=2)
+                stack = np.concatenate([f, l], axis=2).astype(np.uint8)
                 stack = torch.tensor(stack)
                 name_ = os.path.join(_out, '{}.pth'.format(ct))
                 torch.save(stack, name_)
@@ -53,8 +56,10 @@ def read_tif(f):
 
     if np.isnan(np.sum(features)):
         print('{} has nan'.format(f))
+        raise TypeError
     if not np.any(classes):
         print('{} has no labels'.format(f))
+        raise TypeError
 
     return features, label
 
@@ -136,7 +141,7 @@ def get_transforms(in_, out_norm):
 
 if __name__ == '__main__':
     home = '/media/hdisk/itype'
-    for split in ['train']:
+    for split in ['train', 'test', 'valid']:
         dir_ = os.path.join(home, 'tif', split)
         pth = os.path.join(home, 'pth', split)
         write_pth_subsets(dir_, pth)

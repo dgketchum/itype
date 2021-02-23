@@ -1,6 +1,7 @@
 import os
 from glob import glob
 import numpy as np
+import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import Compose, ToTensor, Normalize
 from torchvision.transforms import RandomResizedCrop, RandomHorizontalFlip
@@ -12,52 +13,54 @@ N_CLASSES = 5
 
 class ITypeDataset(Dataset):
 
-    def __init__(self, data_dir, transforms=None):
+    def __init__(self, data_dir, transforms):
         self.data_dir = data_dir
-        self.img_paths = glob(os.path.join(data_dir, '*.tif'))
+        self.img_paths = glob(os.path.join(data_dir, '*.pth'))
         self.transforms = transforms
 
     def __getitem__(self, item):
         img_path = self.img_paths[item]
-        img = rasterio.open(img_path, 'r').read()
-        img = img.transpose(1, 2, 0)
-        label, features = img[:, :, -1], img[:, :, :-1]
-        label = one_hot_label(label, N_CLASSES)
+        img = torch.load(img_path)
+        img = img.permute(2, 0, 1)
+        features, label = img[:6, :, :].float(), img[6:, :, :]
+        label = label.argmax(dim=0)
+        label = label.reshape(1, label.shape[0], label.shape[1])
+        features = self.transforms(features)
+        label = label.argmax(0)
         return features, label
 
     def __len__(self):
         return len(self.img_paths)
 
 
-def build_databunch(data_dir, img_sz, batch_sz, norms, mode='train'):
-    num_workers = 0
+def get_loader(config, split='train'):
 
-    train_dir = os.path.join(data_dir, 'train')
-    valid_dir = os.path.join(data_dir, 'valid')
-    mean, std = norms
+    num_workers = 0
+    split_dir = os.path.join(config['dataset_folder'], split)
+    mean, std = config['norm']
+    batch_sz = config['batch_size']
+
     data_transforms = {
         'train': Compose([
-            RandomResizedCrop(img_sz),
+            RandomResizedCrop(config['image_size']),
             RandomHorizontalFlip(),
-            ToTensor(),
             Normalize(mean, std)]),
         'valid': Compose([
-            ToTensor(),
             Normalize(mean, std)]),
     }
 
-    if mode == 'train':
-        train_ds = ITypeDataset(train_dir, transforms=data_transforms['train'])
+    if split == 'train':
+        train_ds = ITypeDataset(split_dir, transforms=data_transforms['train'])
         dl = DataLoader(
             train_ds,
-            shuffle=False,
+            shuffle=True,
             batch_size=batch_sz,
             num_workers=0,
             drop_last=True,
             pin_memory=True,
             collate_fn=collate_fn)
     else:
-        valid_ds = ITypeDataset(valid_dir, transforms=data_transforms['valid'])
+        valid_ds = ITypeDataset(split_dir, transforms=data_transforms['valid'])
         dl = DataLoader(
             valid_ds,
             batch_size=batch_sz,
@@ -73,7 +76,7 @@ def collate_fn(data):
     for d in data:
         if d:
             x.append(d[0]), y.append(d[1])
-    return x, y
+    return torch.stack(x), torch.stack(y)
 
 
 def one_hot_label(labels, n_classes):
@@ -84,6 +87,12 @@ def one_hot_label(labels, n_classes):
         ls.append(where)
     temp = np.stack(ls, axis=2)
     return temp
+
+
+def get_loaders(config):
+    splits = ['train', 'test', 'valid']
+    train, test, valid = (get_loader(config, split) for split in splits)
+    return train, test, valid
 
 
 if __name__ == '__main__':
