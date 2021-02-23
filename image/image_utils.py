@@ -2,57 +2,70 @@ import os
 import pickle as pkl
 
 import numpy as np
+from matplotlib import pyplot as plt
+import torch
 import rasterio
 from matplotlib import colors
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, ToTensor, Normalize
+from torchvision.transforms import Compose, ToTensor
 
 from image.data import one_hot_label, N_CLASSES
-from image.data import ITypeDataset, build_databunch
+from image.data import ITypeDataset
 
-MODE = 'itype'
-N_CLASSES = 5
-
-from matplotlib import pyplot as plt
-from matplotlib.colors import ListedColormap
+SUBSET_SZ = 256
 
 
-def read_tif(in_, plot=None):
+def write_pth_subsets(in_, _out):
+    def tile(a):
+        s = SUBSET_SZ
+        t = [a[x:x + s, y:y + s] for x in range(0, a.shape[0], s) for y in range(0, a.shape[1], s)]
+        return t
+
+    files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.tif')]
+    ct, no_label = 0, 0
+    for j, file_ in enumerate(files_):
+        features, label = read_tif(file_)
+        sub_f, sub_l = tile(features), tile(label)
+        for f, l in zip(sub_f, sub_l):
+            if np.any(l):
+                stack = np.concatenate([f, l], axis=2)
+                stack = torch.tensor(stack)
+                name_ = os.path.join(_out, '{}.pth'.format(ct))
+                torch.save(stack, name_)
+                ct += 1
+            else:
+                no_label += 1
+    print('{} subsets from {} tif images\n{} chunks w/o label'.format(ct, j, no_label))
+
+
+def read_tif(f):
     """ Read geotiff to image and label ndarray"""
 
-    count = 0
-    inval_ct = 0
-    no_label_ct = 0
-    nan_ct = 0
-
     obj_ct = np.array([0, 0, 0, 0, 0])
+    with rasterio.open(f, 'r') as src:
+        img = src.read()
+
+    img = img.transpose(1, 2, 0)
+    label, features = img[:, :, -1], img[:, :, :-1]
+    label = one_hot_label(label, N_CLASSES)
+    classes = np.array([np.any(label[:, :, i]) for i in range(N_CLASSES)])
+    obj_ct += classes
+
+    if np.isnan(np.sum(features)):
+        print('{} has nan'.format(f))
+    if not np.any(classes):
+        print('{} has no labels'.format(f))
+
+    return features, label
+
+
+def write_image_plots(in_, out):
     files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.tif')]
-    for j, f in enumerate(files_):
-        with rasterio.open(f, 'r') as src:
-            img = src.read()
-
-        img = img.transpose(1, 2, 0)
-        label, features = img[:, :, -1], img[:, :, :-1]
-        label = one_hot_label(label, N_CLASSES)
-        classes = np.array([np.any(label[:, :, i]) for i in range(N_CLASSES)])
-        obj_ct += classes
-
-        if np.isnan(np.sum(features)):
-            nan_ct += 1
-            print(f)
-            continue
-        if not np.any(classes):
-            no_label_ct += 1
-        if np.any(features[:, 0] == -1.0):
-            inval_ct += 1
-
-        count += 1
-
-        fig_name = os.path.join(plot, '{}.png'.format(j))
+    for j, f in files_:
+        features, label = read_tif(f)
+        fig_name = os.path.join(out, '{}.png'.format(j))
         plot_image_data(features, label, out_file=fig_name)
-
-    print('{} shards, {} valid, {} invalid, {} missing labels'
-          ''.format(j + 1, count, inval_ct, no_label_ct))
+    return None
 
 
 def plot_image_data(x, label=None, out_file=None):
@@ -123,12 +136,12 @@ def get_transforms(in_, out_norm):
 
 if __name__ == '__main__':
     home = '/media/hdisk/itype'
-    # for split in ['train']:
-    #     dir_ = os.path.join(home, 'tif', split)
-    #     plots = os.path.join(home, 'plots', split)
-    #     read_tif(dir_, plots)
+    for split in ['train']:
+        dir_ = os.path.join(home, 'tif', split)
+        pth = os.path.join(home, 'pth', split)
+        write_pth_subsets(dir_, pth)
 
-    norms = os.path.join(home, 'normalize')
-    dir_ = os.path.join(home, 'tif', 'train')
-    get_transforms(dir_, norms)
+    # norms = os.path.join(home, 'normalize')
+    # dir_ = os.path.join(home, 'tif', 'train')
+    # get_transforms(dir_, norms)
 # ========================= EOF ====================================================================
