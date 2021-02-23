@@ -31,7 +31,7 @@ lists = ee.List.repeat(list_, KERNEL_SIZE)
 KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 
-class ITypeStack(object):
+class ITypeDataStack(object):
 
     def __init__(self, year, split='train', fid=None):
 
@@ -151,17 +151,6 @@ class ITypeStack(object):
         self.features = features + ['itype']
 
         self.image_stack = image_stack.reproject(self.projection, None, 1.0)
-        self.data_stack = image_stack.neighborhoodToArray(self.kernel)
-
-    def _table_task(self, sample, filename):
-        self.task = ee.batch.Export.table.toCloudStorage(
-            collection=sample,
-            description=filename,
-            bucket=GS_BUCKET,
-            fileNamePrefix=filename,
-            fileFormat='TFRecord',
-            selectors=self.features)
-        self._start_task()
 
     def _start_task(self):
         try:
@@ -174,6 +163,6 @@ class ITypeStack(object):
 
 if __name__ == '__main__':
     for split in ['valid']:
-        stack = ITypeStack(2019, split=split)
+        stack = ITypeDataStack(2019, split=split)
         stack.export_geotiff(overwrite=False)
 # ========================= EOF ====================================================================
