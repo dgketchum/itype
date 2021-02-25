@@ -18,6 +18,7 @@ import time
 
 import ee
 from google.cloud import storage
+from image.landsat import landsat_composites
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = '/home/dgketchum/ssebop-montana-57d2b4da4339.json'
 
 ee.Initialize()
@@ -114,19 +115,10 @@ class ITypeDataStack(object):
         return l
 
     def _create_image(self, roi, start, end):
-        def mask(x):
-            qa = x.select(['QA60'])
-            x = x.updateMask(qa.lt(1))
-            return x
 
         naip = ee.ImageCollection('USDA/NAIP/DOQQ').filterDate(start, end).mosaic()
-        proj = naip.projection().getInfo()
-        sent = ee.ImageCollection('COPERNICUS/S2').filterDate(start, end).filterBounds(roi)
-        sent = sent.map(lambda x: mask(x))
-        ndvi = sent.map(lambda x: x.addBands(x.normalizedDifference(['B8', 'B4'])))
-        std_ndvi = ndvi.select('nd').reduce(ee.Reducer.stdDev()).reproject(crs=proj['crs'], scale=1.0)
-        max_ndvi = ndvi.select('nd').reduce(ee.Reducer.max()).reproject(crs=proj['crs'], scale=1.0)
-        naip = naip.addBands([std_ndvi.rename('std_ndvi'), max_ndvi.rename('mx_ndvi')])
+        lst = landsat_composites(start, end, roi)
+        naip = naip.addBands([lst])
         band_names = naip.bandNames().getInfo()
         return naip, band_names
 
@@ -147,10 +139,8 @@ class ITypeDataStack(object):
         image_stack, features = self._create_image(roi, start=self.start, end=self.end)
 
         i_labels = self._create_labels()
-        image_stack = ee.Image.cat([image_stack, i_labels]).float()
+        self.image_stack = ee.Image.cat([image_stack, i_labels]).float()
         self.features = features + ['itype']
-
-        self.image_stack = image_stack.reproject(self.projection, None, 1.0)
 
     def _start_task(self):
         try:
@@ -162,7 +152,7 @@ class ITypeDataStack(object):
 
 
 if __name__ == '__main__':
-    for split in ['valid']:
-        stack = ITypeDataStack(2019, split=split)
+    for split in ['train']:
+        stack = ITypeDataStack(2019, split=split, fid=33)
         stack.export_geotiff(overwrite=False)
 # ========================= EOF ====================================================================
