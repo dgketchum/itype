@@ -9,7 +9,7 @@ from image.statistics import STATS
 path = Path(__file__).parents
 
 BANDS = 6
-N_CLASSES = 5
+N_CLASSES = 6
 
 
 def get_config(model='clstm', mode='six_channel'):
@@ -22,7 +22,7 @@ def get_config(model='clstm', mode='six_channel'):
               'image_size': (256, 256),
               'rdm_seed': 1,
               'display_step': 1000,
-              'epochs': 300,
+              'epochs': 70,
               'num_classes': N_CLASSES,
               'device': 'cuda:0',
               'num_workers': 1,
@@ -35,13 +35,12 @@ def get_config(model='clstm', mode='six_channel'):
 
     if config['model'] == 'unet':
         config['dataset_folder'] = data
-        config['batch_size'] = 4 * device_ct
-        config['hidden_size'] = 256
+        config['batch_size'] = 8 * device_ct
         config['input_dim'] = BANDS
         config['seed'] = 121
-        config['lr'] = 0.0025
-        config['res_dir'] = os.path.join(path[0], 'models', 'nnet', 'results')
-        with open(os.path.join(path[0], 'models', 'unet', 'config.json'), 'w') as file:
+        config['lr'] = 0.00025
+        config['res_dir'] = os.path.join(path[0], 'models', config['model'], 'results')
+        with open(os.path.join(path[0], 'models', config['model'], 'config.json'), 'w') as file:
             file.write(json.dumps(config, indent=4))
 
     return config

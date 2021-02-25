@@ -1,14 +1,11 @@
 import os
-import pickle as pkl
 import numpy as np
 from copy import deepcopy
-from datetime import datetime
 
 import torch
 from matplotlib import pyplot as plt
 from matplotlib import colors
 
-from utils import recursive_todevice
 from learning.metrics import get_conf_matrix, confusion_matrix_analysis
 from models.model_init import get_model
 from image.data import get_loaders
@@ -51,8 +48,8 @@ def predict(config, plot=False):
             pred_flat = pred_img.flatten()
 
         y = y.numpy()
-        mask = (y.sum(axis=1) > 0).flatten()
-        y_flat = y.sum(axis=1).flatten()
+        mask = (y > 0).flatten()
+        y_flat = y.flatten()
 
         if plot:
             out_fig = os.path.join(config['res_dir'], 'figures', '{}.png'.format(i))
@@ -61,9 +58,9 @@ def predict(config, plot=False):
         confusion += get_conf_matrix(y_flat[mask], pred_flat[mask], n_class)
 
     _, overall = confusion_matrix_analysis(confusion)
-    prec, rec, f1 = overall['precision'], overall['recall'], overall['f1-score']
+    f1 = overall['f1-score']
     print(confusion)
-    print('Precision {:.4f}, Recall {:.4f}, F1 {:.2f},'.format(prec, rec, f1))
+    print('F1 {:.2f},'.format(f1))
 
 
 def plot_prediction(x, pred, label, out_file=None):
@@ -85,10 +82,7 @@ def plot_prediction(x, pred, label, out_file=None):
         mx_ndvi = a[:, :, 5]
         std_ndvi = a[:, :, 4]
 
-        label_ = label[i, :, :, :]
-        mask = (label_.sum(axis=0) == 0)
-        label_ = label_.argmax(0) + 1
-        label_[mask] = 0
+        label_ = label[i, :, :]
         pred_ = pred[i, :, :]
 
         ax[0].imshow(rgb)

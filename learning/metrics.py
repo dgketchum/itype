@@ -1,7 +1,5 @@
 import numpy as np
 
-y =    np.array([0, 1, 2, 3, 2, 3, 2, 0, 1, 2, 3, 0, 2, 1, 0, 2])
-pred = np.array([0, 2, 2, 3, 2, 3, 2, 0, 2, 2, 1, 3, 2, 3, 3, 2])
 
 def get_conf_matrix(y, pred, n_class):
     batch_conf = np.zeros((n_class, n_class))
@@ -47,8 +45,5 @@ def confusion_matrix_analysis(mat):
 
 
 if __name__ == '__main__':
-    conf = get_conf_matrix(y, pred, n_class=4)
-    cma, overall = confusion_matrix_analysis(conf)
-    print(conf)
-    print(cma['0'])
+    pass
 # =======================================================================================

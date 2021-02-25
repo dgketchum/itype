@@ -7,9 +7,8 @@ import torch
 import rasterio
 from matplotlib import colors
 from torch.utils.data import DataLoader
-from torchvision.transforms import Compose, ToTensor
 
-from image.data import one_hot_label, N_CLASSES
+from image.data import N_CLASSES, N_BANDS
 from image.data import ITypeDataset
 
 SUBSET_SZ = 256
@@ -22,15 +21,19 @@ def write_pth_subsets(in_, _out):
         return t
 
     files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.tif')]
+    obj_ct = np.array([0, 0, 0, 0, 0, 0])
     ct, no_label = 0, 0
     for j, file_ in enumerate(files_):
         try:
             features, label = read_tif(file_)
+            classes = np.array([np.count_nonzero(label == i) for i in range(N_CLASSES)])
+            obj_ct += classes
         except TypeError:
             continue
         sub_f, sub_l = tile(features), tile(label)
         for f, l in zip(sub_f, sub_l):
             if np.any(l):
+                f[:, :, -2:] = f[:, :, -2:] * 100
                 stack = np.concatenate([f, l], axis=2).astype(np.uint8)
                 stack = torch.tensor(stack)
                 name_ = os.path.join(_out, '{}.pth'.format(ct))
@@ -39,26 +42,20 @@ def write_pth_subsets(in_, _out):
             else:
                 no_label += 1
     print('{} subsets from {} tif images\n{} chunks w/o label'.format(ct, j, no_label))
+    print('class distribution:\n{}'.format(obj_ct))
 
 
 def read_tif(f):
     """ Read geotiff to image and label ndarray"""
 
-    obj_ct = np.array([0, 0, 0, 0, 0])
     with rasterio.open(f, 'r') as src:
         img = src.read()
 
     img = img.transpose(1, 2, 0)
-    label, features = img[:, :, -1], img[:, :, :-1]
-    label = one_hot_label(label, N_CLASSES)
-    classes = np.array([np.any(label[:, :, i]) for i in range(N_CLASSES)])
-    obj_ct += classes
+    label, features = img[:, :, -1].reshape(img.shape[0], img.shape[1], 1), img[:, :, :-1]
 
     if np.isnan(np.sum(features)):
         print('{} has nan'.format(f))
-        raise TypeError
-    if not np.any(classes):
-        print('{} has no labels'.format(f))
         raise TypeError
 
     return features, label
@@ -111,8 +108,8 @@ def plot_image_data(x, label=None, out_file=None):
 
 
 def get_transforms(in_, out_norm):
-    transform = Compose([ToTensor()])
-    valid_ds = ITypeDataset(in_, transforms=transform)
+    """Run through unnormalized training data for global mean and std."""
+    valid_ds = ITypeDataset(in_, transforms=None)
     dl = DataLoader(
         valid_ds,
         batch_size=4,
@@ -123,8 +120,7 @@ def get_transforms(in_, out_norm):
     nimages = 0
     mean = 0.
     std = 0.
-    for x, _ in dl:
-        x = x.permute(0, 3, 1, 2)
+    for i, (x, _) in enumerate(dl):
         x = x.reshape(x.shape[0], x.shape[1], x.shape[2] * x.shape[3])
         nimages += x.size(0)
         mean += x.mean(2).sum(0)
@@ -147,6 +143,6 @@ if __name__ == '__main__':
         write_pth_subsets(dir_, pth)
 
     # norms = os.path.join(home, 'normalize')
-    # dir_ = os.path.join(home, 'tif', 'train')
+    # dir_ = os.path.join(home, 'pth', 'train')
     # get_transforms(dir_, norms)
 # ========================= EOF ====================================================================
