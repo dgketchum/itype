@@ -116,7 +116,7 @@ def landsat_masked(yr, roi):
     return lsSR_masked
 
 
-def landsat_composites(start, end, roi):
+def landsat_composite(start, end, roi):
 
     year = int(start[:4])
     ls_sr_masked = landsat_masked(year, roi)
@@ -124,7 +124,7 @@ def landsat_composites(start, end, roi):
         lambda x: x.normalizedDifference(['B5', 'B4'])).reduce(ee.Reducer.max())).rename('mx_ndvi')
     std_ndvi = ee.Image(ls_sr_masked.filterDate(start, end).map(
         lambda x: x.normalizedDifference(['B5', 'B4'])).reduce(ee.Reducer.stdDev())).rename('std_ndvi')
-    return mx_ndvi.addBands([std_ndvi])
+    return std_ndvi.addBands([mx_ndvi])
 
 
 if __name__ == '__main__':

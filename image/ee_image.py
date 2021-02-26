@@ -18,7 +18,9 @@ import time
 
 import ee
 from google.cloud import storage
-from image.landsat import landsat_composites
+from image.landsat import landsat_composite
+from image.sentinel import sentinel_composite
+
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = '/home/dgketchum/ssebop-montana-57d2b4da4339.json'
 
 ee.Initialize()
@@ -34,7 +36,7 @@ KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 class ITypeDataStack(object):
 
-    def __init__(self, year, split='train', fid=None):
+    def __init__(self, year, split='train', satellite='landsat', fid=None):
 
         self.fid = fid
         self.year = year
@@ -42,13 +44,16 @@ class ITypeDataStack(object):
         self.split = split
 
         self.bounds = 'users/dgketchum/boundaries/MT'
-        self.points = 'users/dgketchum/itype/mt_pts'
+
         self.grid = 'users/dgketchum/itype/mt_grid_{}'.format(year)
-        self.irr_labels = 'users/dgketchum/itype/mt_itype_2019'
+        self.irr_labels = 'users/dgketchum/itype/mt_itype_{}'.format(year)
+
         self.dryland_labels = 'users/dgketchum/itype/dryland'
         self.uncult_labels = 'users/dgketchum/itype/uncultivated'
         self.wetland_labels = 'users/dgketchum/itype/wetlands'
         self.projection = ee.Projection('EPSG:3857')
+
+        self.satellite = satellite
 
         self.basename = os.path.basename(self.irr_labels)
         self.points_fc, self.features = None, None
@@ -83,7 +88,7 @@ class ITypeDataStack(object):
             print('export {}'.format(name_))
             self._start_task()
 
-    def _create_labels(self):
+    def _build_labels(self):
 
         class_labels = ee.Image(0).byte().rename('itype')
         flood = ee.FeatureCollection(self.irr_labels).filter(ee.Filter.eq("IType", 'F'))
@@ -114,12 +119,20 @@ class ITypeDataStack(object):
         l = [x.split('.')[0] for x in dct['']]
         return l
 
-    def _create_image(self, roi, start, end):
+    def _build_image(self, roi, start, end):
 
         naip = ee.ImageCollection('USDA/NAIP/DOQQ').filterDate(start, end).mosaic()
-        lst = landsat_composites(start, end, roi)
-        naip = naip.addBands([lst])
+
+        if self.satellite == 'sentinel':
+            sent = sentinel_composite(start, end, roi)
+            naip = naip.addBands(sent)
+
+        if self.satellite == 'landsat':
+            lst = landsat_composite(start, end, roi)
+            naip = naip.addBands(lst)
+
         band_names = naip.bandNames().getInfo()
+
         return naip, band_names
 
     def _build_data(self):
@@ -127,18 +140,13 @@ class ITypeDataStack(object):
         roi = ee.FeatureCollection(self.bounds).geometry()
 
         if self.fid:
-            points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('FID', self.fid))
             grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('FID', self.fid))
         else:
-            points_fc = ee.FeatureCollection(self.points).filter(ee.Filter.eq('SPLIT', split))
             grid_fc = ee.FeatureCollection(self.grid).filter(ee.Filter.eq('SPLIT', self.split))
 
-        self.points_fc = points_fc.toList(points_fc.size())
         self.grid_fc = grid_fc.toList(grid_fc.size())
-
-        image_stack, features = self._create_image(roi, start=self.start, end=self.end)
-
-        i_labels = self._create_labels()
+        image_stack, features = self._build_image(roi, start=self.start, end=self.end)
+        i_labels = self._build_labels()
         self.image_stack = ee.Image.cat([image_stack, i_labels]).float()
         self.features = features + ['itype']
 
@@ -153,6 +161,6 @@ class ITypeDataStack(object):
 
 if __name__ == '__main__':
     for split in ['train']:
-        stack = ITypeDataStack(2019, split=split, fid=33)
-        stack.export_geotiff(overwrite=False)
+        stack = ITypeDataStack(2009, split=split, satellite='landsat')
+        stack.export_geotiff(overwrite=True)
 # ========================= EOF ====================================================================

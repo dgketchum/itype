@@ -65,7 +65,7 @@ def write_image_plots(in_, out):
     files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.tif')]
     for j, f in enumerate(files_):
         features, label = read_tif(f)
-        fig_name = os.path.join(out, '{}.png'.format(j))
+        fig_name = os.path.join(out, '{}_lst_.png'.format(j))
         plot_image_data(features, label, out_file=fig_name)
     return None
 
@@ -142,8 +142,8 @@ if __name__ == '__main__':
     #     pth = os.path.join(home, 'pth', split)
     #     write_pth_subsets(dir_, pth)
 
-    dir_ = os.path.join(home, 'tif', 'train')
-    pltt = os.path.join(home, 'plots', 'train_')
+    dir_ = os.path.join(home, 'tif_lst', 'train')
+    pltt = os.path.join(home, 'plots')
     write_image_plots(dir_, pltt)
 
     # norms = os.path.join(home, 'normalize')
