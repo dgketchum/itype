@@ -37,6 +37,7 @@ def get_config(model='clstm', mode='six_channel'):
         config['dataset_folder'] = data
         config['batch_size'] = 8 * device_ct
         config['input_dim'] = BANDS
+        config['sample_n'] = [1012505459, 337955249, 43964057, 153976261, 222513580, 69336274]
         config['seed'] = 121
         config['lr'] = 0.0001
         config['res_dir'] = os.path.join(path[0], 'models', config['model'], 'results')

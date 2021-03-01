@@ -110,8 +110,13 @@ def train(config):
     model.apply(weight_init)
 
     lr = config['lr']
+    weights = torch.tensor(config['sample_n'], dtype=torch.float32)
+    weights = weights / weights.sum()
+    weights = 1.0 / weights
+    weights = weights / weights.sum()
+    weights = torch.FloatTensor(weights).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-4)
-    criterion = nn.CrossEntropyLoss(ignore_index=0).to(device)
+    criterion = nn.CrossEntropyLoss(ignore_index=0, weight=weights).to(device)
 
     with open(os.path.join(config['res_dir'], 'config.json'), 'w') as _file:
         _file.write(json.dumps(config, indent=4))
