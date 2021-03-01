@@ -110,7 +110,7 @@ def train(config):
     model.apply(weight_init)
 
     lr = config['lr']
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, eps=1e-4)
     criterion = nn.CrossEntropyLoss(ignore_index=0).to(device)
 
     with open(os.path.join(config['res_dir'], 'config.json'), 'w') as _file:
