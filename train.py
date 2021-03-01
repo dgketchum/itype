@@ -27,8 +27,8 @@ def train_epoch(model, optimizer, criterion, loader, config):
         optimizer.zero_grad()
         out = model(x)
         loss = criterion(out, y)
-
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         if (i + 1) % config['display_step'] == 0:
             print('Train Step {}, Loss: {:.4f}'.format(i + 1, loss.item()))
@@ -109,10 +109,9 @@ def train(config):
     model = model.to(device)
     model.apply(weight_init)
 
-    optimizer = torch.optim.Adam(model.parameters())
+    lr = config['lr']
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     criterion = nn.CrossEntropyLoss(ignore_index=0).to(device)
-
-    # config['N_params'] = model.param_ratio()
 
     with open(os.path.join(config['res_dir'], 'config.json'), 'w') as _file:
         _file.write(json.dumps(config, indent=4))

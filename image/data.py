@@ -24,6 +24,14 @@ class ITypeDataset(Dataset):
         img = img.permute(2, 0, 1)
         features = img[:6, :, :].float()
         label = img[-1, :, :].long()
+
+        if not torch.isfinite(img).all():
+            print('non-finite in {}'.format(img_path))
+            if not torch.isfinite(features).all():
+                print('lalbel has nan/inf')
+            if not torch.isfinite(label).all():
+                print('lalbel has nan/inf')
+
         if self.transforms:
             features = self.transforms(features)
         return features, label
@@ -61,6 +69,7 @@ def get_loader(config, split='train'):
         valid_ds = ITypeDataset(split_dir, transforms=data_transforms['valid'])
         dl = DataLoader(
             valid_ds,
+            shuffle=False,
             batch_size=batch_sz,
             num_workers=num_workers,
             pin_memory=True,
@@ -81,6 +90,48 @@ def get_loaders(config):
     splits = ['train', 'test', 'valid']
     train, test, valid = (get_loader(config, split) for split in splits)
     return train, test, valid
+
+
+class MinMaxScalerVectorized(object):
+    """MinMax Scaler
+
+    Transforms each channel to the range [a, b].
+
+    Parameters
+    ----------
+    feature_range : tuple
+        Desired range of transformed data.
+    """
+
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+    def __call__(self, tensor):
+        """Fit features
+
+        Parameters
+        ----------
+        stacked_features : tuple, list
+            List of stacked features.
+
+        Returns
+        -------
+        tensor
+            A tensor with scaled features using requested preprocessor.
+        """
+
+        # tensor = torch.stack(tensor)
+
+        # Feature range
+        a, b = -1., 1.
+
+        dist = tensor.max(dim=0, keepdim=True)[0] - tensor.min(dim=0, keepdim=True)[0]
+        dist[dist == 0.0] = 1.0
+        scale = 1.0 / dist
+        tensor.mul_(scale).sub_(tensor.min(dim=0, keepdim=True)[0])
+        tensor.mul_(b - a).add_(a)
+
+        return tensor
 
 
 if __name__ == '__main__':

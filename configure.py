@@ -21,8 +21,8 @@ def get_config(model='clstm', mode='six_channel'):
               'mode': mode,
               'image_size': (256, 256),
               'rdm_seed': 1,
-              'display_step': 1000,
-              'epochs': 70,
+              'display_step': 100,
+              'epochs': 1000,
               'num_classes': N_CLASSES,
               'device': 'cuda:0',
               'num_workers': 1,
@@ -38,7 +38,7 @@ def get_config(model='clstm', mode='six_channel'):
         config['batch_size'] = 8 * device_ct
         config['input_dim'] = BANDS
         config['seed'] = 121
-        config['lr'] = 0.00025
+        config['lr'] = 0.0001
         config['res_dir'] = os.path.join(path[0], 'models', config['model'], 'results')
         with open(os.path.join(path[0], 'models', config['model'], 'config.json'), 'w') as file:
             file.write(json.dumps(config, indent=4))

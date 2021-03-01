@@ -42,6 +42,7 @@ def predict(config, plot=False):
     for i, (x, y) in enumerate(val_loader):
         image = inv_norm(deepcopy(x), config)
         x = x.to(device)
+
         with torch.no_grad():
             out = model(x)
             pred_img = torch.argmax(out, dim=1).cpu().numpy()
@@ -53,6 +54,7 @@ def predict(config, plot=False):
 
         if plot:
             out_fig = os.path.join(config['res_dir'], 'figures', '{}.png'.format(i))
+            print('write {}'.format(out_fig))
             plot_prediction(image, pred_img, y, out_file=out_fig)
 
         confusion += get_conf_matrix(y_flat[mask], pred_flat[mask], n_class)

@@ -8,7 +8,7 @@ import rasterio
 from matplotlib import colors
 from torch.utils.data import DataLoader
 
-from image.data import N_CLASSES, N_BANDS
+from image.data import N_CLASSES
 from image.data import ITypeDataset
 
 SUBSET_SZ = 256
@@ -54,8 +54,20 @@ def read_tif(f):
     img = img.transpose(1, 2, 0)
     label, features = img[:, :, -1].reshape(img.shape[0], img.shape[1], 1), img[:, :, :-1]
 
-    if np.isnan(np.sum(features)):
-        print('{} has nan'.format(f))
+    if not np.isfinite(features).all():
+        print('image {} has nan/inf'.format(f))
+        raise TypeError
+
+    if not np.isfinite(label).all():
+        print('label {} has nan/inf'.format(f))
+        raise TypeError
+
+    if not np.less_equal(label, N_CLASSES - 1).all():
+        print('{} has label greater than {}'.format(f, N_CLASSES - 1))
+        raise TypeError
+
+    if not np.greater_equal(label, 0).all():
+        print('{} has label less than {}'.format(f, 0))
         raise TypeError
 
     return features, label
@@ -72,17 +84,13 @@ def write_image_plots(in_, out):
 
 def plot_image_data(x, label=None, out_file=None):
     cmap_label = colors.ListedColormap(['white', 'green', 'yellow', 'blue', 'pink', 'grey'])
-    bounds = [0, 1, 2, 3, 4]
+    bounds = [0, 1, 2, 3, 4, 5]
     norm = colors.BoundaryNorm(bounds, len(bounds))
 
     fig, ax = plt.subplots(ncols=4, nrows=1, figsize=(20, 10))
 
     r, g, b = x[:, :, 0], x[:, :, 1], x[:, :, 2]
     rgb = np.dstack([r, g, b]).astype(int)
-
-    mask = label.sum(-1) == 0
-    label = label.argmax(-1) + 1
-    label[mask] = 0
 
     mx_ndvi = x[:, :, 5]
     std_ndvi = x[:, :, 4]
@@ -109,9 +117,9 @@ def plot_image_data(x, label=None, out_file=None):
 
 def get_transforms(in_, out_norm):
     """Run through unnormalized training data for global mean and std."""
-    valid_ds = ITypeDataset(in_, transforms=None)
+    train_ds = ITypeDataset(in_, transforms=None)
     dl = DataLoader(
-        valid_ds,
+        train_ds,
         batch_size=4,
         num_workers=4,
         pin_memory=True,
@@ -121,6 +129,7 @@ def get_transforms(in_, out_norm):
     mean = 0.
     std = 0.
     for i, (x, _) in enumerate(dl):
+        continue
         x = x.reshape(x.shape[0], x.shape[1], x.shape[2] * x.shape[3])
         nimages += x.size(0)
         mean += x.mean(2).sum(0)
@@ -129,22 +138,22 @@ def get_transforms(in_, out_norm):
     mean /= nimages
     std /= nimages
 
-    pkl_name = os.path.join(out_norm, 'meanstd.pkl')
     print((mean, std))
+    pkl_name = os.path.join(out_norm, 'meanstd.pkl')
     with open(pkl_name, 'wb') as handle:
         pkl.dump((mean, std), handle, protocol=pkl.HIGHEST_PROTOCOL)
 
 
 if __name__ == '__main__':
     home = '/media/hdisk/itype'
-    # for split in ['train', 'test', 'valid']:
-    #     dir_ = os.path.join(home, 'tif', split)
-    #     pth = os.path.join(home, 'pth', split)
-    #     write_pth_subsets(dir_, pth)
+    for split in ['train', 'test', 'valid']:
+        dir_ = os.path.join(home, 'tif_snt', split)
+        pth = os.path.join(home, 'pth', split)
+        write_pth_subsets(dir_, pth)
 
-    dir_ = os.path.join(home, 'tif_lst', 'train')
-    pltt = os.path.join(home, 'plots')
-    write_image_plots(dir_, pltt)
+    # dir_ = os.path.join(home, 'tif_lst', 'valid')
+    # pltt = os.path.join(home, 'plot_lst', 'valid')
+    # write_image_plots(dir_, pltt)
 
     # norms = os.path.join(home, 'normalize')
     # dir_ = os.path.join(home, 'pth', 'train')
