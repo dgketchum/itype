@@ -12,13 +12,21 @@ from image.data import get_loaders
 from configure import get_config
 
 
+def pprint_confusion(a):
+    np.set_printoptions(precision=0)
+    np.seterr(divide='ignore')
+    a = np.log10(a)
+    a[np.isinf(a)] = 0.0
+    print(a)
+
+
 def inv_norm(x, config):
     """ get original image data (1 X H x W x T x C ) ==> ( H x W x C )"""
     mean_std = config['norm']
     x = x.squeeze()
     x = x.permute(0, 2, 3, 1)
-    mean, std = torch.tensor(mean_std[0]), torch.tensor(mean_std[1])
-    x = x.mul_(std).add_(mean)
+    # mean, std = torch.tensor(mean_std[0]), torch.tensor(mean_std[1])
+    # x = x.mul_(std).add_(mean)
     x = x.detach().numpy()
     return x
 
@@ -61,7 +69,7 @@ def predict(config, plot=False):
 
     _, overall = confusion_matrix_analysis(confusion)
     f1 = overall['f1-score']
-    print(confusion)
+    pprint_confusion(confusion[-5:, -5:])
     print('F1 {:.2f},'.format(f1))
 
 

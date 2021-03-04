@@ -6,10 +6,10 @@ from datetime import datetime
 
 import torch
 import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
 
 from learning.weight_init import weight_init
 from learning.metrics import confusion_matrix_analysis, get_conf_matrix
-
 from models.model_init import get_model
 from image.data import get_loaders
 from configure import get_config
@@ -21,23 +21,26 @@ def train_epoch(model, optimizer, criterion, loader, config):
     ts = datetime.now()
     device = torch.device(config['device'])
     loss = None
+    mean_loss = 0.0
     for i, (x, y) in enumerate(loader):
         x = x.to(device)
         y = y.to(device)
         optimizer.zero_grad()
         out = model(x)
         loss = criterion(out, y)
+        mean_loss += loss.item()
         loss.backward()
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         if (i + 1) % config['display_step'] == 0:
-            print('Train Step {}, Loss: {:.4f}'.format(i + 1, loss.item()))
+            print('Train Step {}, Loss: {:.4f}'.format(i + 1, mean_loss))
 
+    mean_loss = mean_loss / (i + 1)
     t_delta = datetime.now() - ts
     print('Train Loss: {:.4f} in {:.2f} minutes in {} steps'.format(loss.item(),
                                                                     t_delta.seconds / 60.,
                                                                     i + 1))
-    return {'train_loss': loss.item()}
+    return {'train_loss': mean_loss}
 
 
 def evaluate_epoch(model, loader, config, mode='valid'):
@@ -59,7 +62,7 @@ def evaluate_epoch(model, loader, config, mode='valid'):
     per_class, overall = confusion_matrix_analysis(confusion)
     t_delta = datetime.now() - ts
     print('Evaluation: IOU: {:.4f}, '
-          'in {:.2f} minutes, {} steps'.format(overall['iou'], t_delta.seconds / 60., i))
+          'in {:.2f} minutes, {} steps'.format(overall['iou'], t_delta.seconds / 60., i + 1))
 
     if mode == 'valid':
         overall['{}_iou'.format(mode)] = overall['iou']
@@ -95,6 +98,9 @@ def overall_performance(config, conf):
 
 
 def train(config):
+
+    writer = SummaryWriter(config['res_dir'])
+
     np.random.seed(config['rdm_seed'])
     torch.manual_seed(config['rdm_seed'])
 
@@ -130,12 +136,14 @@ def train(config):
 
         model.train()
         train_metrics = train_epoch(model, optimizer, criterion, train_loader, config=config)
+        writer.add_scalar('training_loss', train_metrics['train_loss'], epoch)
         model.eval()
         val_metrics = evaluate_epoch(model, val_loader, config=config)
+        writer.add_scalar('accuracy', val_metrics['accuracy'], epoch)
 
         train_log[epoch] = {**train_metrics, **val_metrics}
-        if val_metrics['iou'] >= best_iou:
-            best_iou = val_metrics['iou']
+        if val_metrics['accuracy'] >= best_iou:
+            best_iou = val_metrics['accuracy']
             torch.save({'epoch': epoch, 'state_dict': model.state_dict(),
                         'optimizer': optimizer.state_dict()},
                        os.path.join(config['res_dir'], 'model.pth.tar'))
@@ -147,6 +155,7 @@ def train(config):
     overall_performance(config, conf)
     t_delta = datetime.now() - TIME_START
     print('Total Time: {:.2f} minutes'.format(t_delta.seconds / 60.))
+    writer.close()
 
 
 if __name__ == '__main__':

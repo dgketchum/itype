@@ -4,7 +4,10 @@ import numpy as np
 def get_conf_matrix(y, pred, n_class):
     batch_conf = np.zeros((n_class, n_class))
     for i in range(len(y)):
-        batch_conf[y[i], pred[i]] += 1
+        try:
+            batch_conf[y[i], pred[i]] += 1
+        except IndexError as e:
+            print(e)
     return batch_conf
 
 

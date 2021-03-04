@@ -1,10 +1,8 @@
 import os
 from glob import glob
-import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision.transforms import Compose, ToTensor, Normalize
-from torchvision.transforms import RandomResizedCrop, RandomHorizontalFlip
+from torchvision.transforms import Compose, Normalize
 
 N_CLASSES = 6
 N_BANDS = 6
@@ -47,7 +45,6 @@ def get_loader(config, split='train'):
     mean, std = config['norm']
     batch_sz = config['batch_size']
 
-    # consider albumentation library
     data_transforms = {
         'train': Compose([
             Normalize(mean, std)]),
@@ -56,7 +53,7 @@ def get_loader(config, split='train'):
     }
 
     if split == 'train':
-        train_ds = ITypeDataset(split_dir, transforms=data_transforms['train'])
+        train_ds = ITypeDataset(split_dir, transforms=None)
         dl = DataLoader(
             train_ds,
             shuffle=True,
@@ -66,7 +63,7 @@ def get_loader(config, split='train'):
             pin_memory=True,
             collate_fn=collate_fn)
     else:
-        valid_ds = ITypeDataset(split_dir, transforms=data_transforms['valid'])
+        valid_ds = ITypeDataset(split_dir, transforms=None)
         dl = DataLoader(
             valid_ds,
             shuffle=False,
@@ -90,48 +87,6 @@ def get_loaders(config):
     splits = ['train', 'test', 'valid']
     train, test, valid = (get_loader(config, split) for split in splits)
     return train, test, valid
-
-
-class MinMaxScalerVectorized(object):
-    """MinMax Scaler
-
-    Transforms each channel to the range [a, b].
-
-    Parameters
-    ----------
-    feature_range : tuple
-        Desired range of transformed data.
-    """
-
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
-
-    def __call__(self, tensor):
-        """Fit features
-
-        Parameters
-        ----------
-        stacked_features : tuple, list
-            List of stacked features.
-
-        Returns
-        -------
-        tensor
-            A tensor with scaled features using requested preprocessor.
-        """
-
-        # tensor = torch.stack(tensor)
-
-        # Feature range
-        a, b = -1., 1.
-
-        dist = tensor.max(dim=0, keepdim=True)[0] - tensor.min(dim=0, keepdim=True)[0]
-        dist[dist == 0.0] = 1.0
-        scale = 1.0 / dist
-        tensor.mul_(scale).sub_(tensor.min(dim=0, keepdim=True)[0])
-        tensor.mul_(b - a).add_(a)
-
-        return tensor
 
 
 if __name__ == '__main__':

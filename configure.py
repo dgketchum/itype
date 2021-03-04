@@ -13,7 +13,7 @@ N_CLASSES = 6
 
 
 def get_config(model='clstm', mode='six_channel'):
-    data = '/media/hdisk/itype/pth'
+    data = '/media/hdisk/itype/pth_snt'
 
     device_ct = torch.cuda.device_count()
 
@@ -21,8 +21,8 @@ def get_config(model='clstm', mode='six_channel'):
               'mode': mode,
               'image_size': (256, 256),
               'rdm_seed': 1,
-              'display_step': 100,
-              'epochs': 1000,
+              'display_step': 1000,
+              'epochs': 100,
               'num_classes': N_CLASSES,
               'device': 'cuda:0',
               'num_workers': 1,
@@ -35,7 +35,7 @@ def get_config(model='clstm', mode='six_channel'):
 
     if config['model'] == 'unet':
         config['dataset_folder'] = data
-        config['batch_size'] = 8 * device_ct
+        config['batch_size'] = 4 * device_ct
         config['input_dim'] = BANDS
         config['sample_n'] = [1012505459, 337955249, 43964057, 153976261, 222513580, 69336274]
         config['seed'] = 121

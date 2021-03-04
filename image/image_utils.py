@@ -1,5 +1,7 @@
 import os
 import pickle as pkl
+import shutil
+import tempfile
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -7,6 +9,7 @@ import torch
 import rasterio
 from matplotlib import colors
 from torch.utils.data import DataLoader
+from google.cloud import storage
 
 from image.data import N_CLASSES
 from image.data import ITypeDataset
@@ -14,7 +17,11 @@ from image.data import ITypeDataset
 SUBSET_SZ = 256
 
 
-def write_pth_subsets(in_, _out):
+def write_pth_subsets(in_, _out, bucket=None, bucket_dst=None):
+    if bucket:
+        storage_client = storage.Client()
+        bucket = storage_client.get_bucket(bucket)
+
     def tile(a):
         s = SUBSET_SZ
         t = [a[x:x + s, y:y + s] for x in range(0, a.shape[0], s) for y in range(0, a.shape[1], s)]
@@ -33,14 +40,21 @@ def write_pth_subsets(in_, _out):
         sub_f, sub_l = tile(features), tile(label)
         for f, l in zip(sub_f, sub_l):
             if np.any(l):
-                f[:, :, -2:] = f[:, :, -2:] * 100
-                stack = np.concatenate([f, l], axis=2).astype(np.uint8)
+                f[:, :, -2:] = f[:, :, -2:] * 1000
+                stack = np.concatenate([f, l], axis=2).astype(np.int16)
                 stack = torch.tensor(stack)
                 name_ = os.path.join(_out, '{}.pth'.format(ct))
                 torch.save(stack, name_)
+                if bucket:
+                    blob_name = os.path.join(bucket_dst, name_)
+                    blob = bucket.blob(blob_name)
+                    print('push {}'.format(blob_name))
+                    blob.upload_from_filename(name_)
+                    os.remove(name_)
                 ct += 1
             else:
                 no_label += 1
+
     print('{} subsets from {} tif images\n{} chunks w/o label'.format(ct, j, no_label))
     print('class distribution:\n{}'.format(obj_ct))
 
@@ -128,12 +142,24 @@ def get_transforms(in_, out_norm):
     nimages = 0
     mean = 0.
     std = 0.
+    first = True
     for i, (x, _) in enumerate(dl):
-        continue
         x = x.reshape(x.shape[0], x.shape[1], x.shape[2] * x.shape[3])
+        if first:
+            max_ = torch.amax(x, dim=(2, 0))
+            min_ = torch.amin(x, dim=(2, 0))
+            first = False
+
+        amax = torch.amax(x, dim=(2, 0))
+        amin = torch.amin(x, dim=(2, 0))
+        max_ = torch.max(amax, max_)
+        min_ = torch.min(amin, min_)
         nimages += x.size(0)
         mean += x.mean(2).sum(0)
         std += x.std(2).sum(0)
+
+    print('channel-wise min: {}'.format(list(min_.numpy())))
+    print('channel-wise max: {}'.format(list(max_.numpy())))
 
     mean /= nimages
     std /= nimages
@@ -146,16 +172,21 @@ def get_transforms(in_, out_norm):
 
 if __name__ == '__main__':
     home = '/media/hdisk/itype'
+    instrument = 'snt'
+    tmpdirname = tempfile.mkdtemp()
+    bucket_root = 'itype'
+    yr_ = 2019
     for split in ['train', 'test', 'valid']:
-        dir_ = os.path.join(home, 'tif_snt', split)
-        pth = os.path.join(home, 'pth', split)
-        write_pth_subsets(dir_, pth)
+        tif_recs = 'gs://{}/tif_{}/{}/{}'.format(bucket_root, instrument, yr_, split)
+        bucket_dir = 'pth_{}/{}/{}'.format(instrument, yr_, split)
+
+        write_pth_subsets(tif_recs, tmpdirname, bucket=bucket_root, bucket_dst=bucket_dir)
 
     # dir_ = os.path.join(home, 'tif_lst', 'valid')
     # pltt = os.path.join(home, 'plot_lst', 'valid')
     # write_image_plots(dir_, pltt)
 
     # norms = os.path.join(home, 'normalize')
-    # dir_ = os.path.join(home, 'pth', 'train')
+    # dir_ = os.path.join(home, 'pth_{}'.format(instrument), 'train')
     # get_transforms(dir_, norms)
 # ========================= EOF ====================================================================
