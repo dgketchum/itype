@@ -1,7 +1,5 @@
 import os
 import pickle as pkl
-import shutil
-import tempfile
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -9,7 +7,6 @@ import torch
 import rasterio
 from matplotlib import colors
 from torch.utils.data import DataLoader
-from google.cloud import storage
 
 from image.data import N_CLASSES
 from image.data import ITypeDataset
@@ -17,10 +14,7 @@ from image.data import ITypeDataset
 SUBSET_SZ = 256
 
 
-def write_pth_subsets(in_, _out, bucket=None, bucket_dst=None):
-    if bucket:
-        storage_client = storage.Client()
-        bucket = storage_client.get_bucket(bucket)
+def write_pth_subsets(in_, _out, start_ct=None):
 
     def tile(a):
         s = SUBSET_SZ
@@ -30,6 +24,8 @@ def write_pth_subsets(in_, _out, bucket=None, bucket_dst=None):
     files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.tif')]
     obj_ct = np.array([0, 0, 0, 0, 0, 0])
     ct, no_label = 0, 0
+    if start_ct:
+        ct = start_ct
     for j, file_ in enumerate(files_):
         try:
             features, label = read_tif(file_)
@@ -45,12 +41,6 @@ def write_pth_subsets(in_, _out, bucket=None, bucket_dst=None):
                 stack = torch.tensor(stack)
                 name_ = os.path.join(_out, '{}.pth'.format(ct))
                 torch.save(stack, name_)
-                if bucket:
-                    blob_name = os.path.join(bucket_dst, name_)
-                    blob = bucket.blob(blob_name)
-                    print('push {}'.format(blob_name))
-                    blob.upload_from_filename(name_)
-                    os.remove(name_)
                 ct += 1
             else:
                 no_label += 1
@@ -63,6 +53,7 @@ def read_tif(f):
     """ Read geotiff to image and label ndarray"""
 
     with rasterio.open(f, 'r') as src:
+        print(f)
         img = src.read()
 
     img = img.transpose(1, 2, 0)
@@ -171,16 +162,13 @@ def get_transforms(in_, out_norm):
 
 
 if __name__ == '__main__':
-    home = '/media/hdisk/itype'
-    instrument = 'snt'
-    tmpdirname = tempfile.mkdtemp()
-    bucket_root = 'itype'
-    yr_ = 2019
-    for split in ['train', 'test', 'valid']:
-        tif_recs = 'gs://{}/tif_{}/{}/{}'.format(bucket_root, instrument, yr_, split)
-        bucket_dir = 'pth_{}/{}/{}'.format(instrument, yr_, split)
-
-        write_pth_subsets(tif_recs, tmpdirname, bucket=bucket_root, bucket_dst=bucket_dir)
+    home = '/home/dgketchum/itype'
+    instrument = 'lst'
+    yr_ = str(2009)
+    split = 'train'
+    tif_recs = os.path.join(home, 'tif_{}'.format(instrument), yr_, split)
+    pth_recs = os.path.join(home, 'pth_{}'.format(instrument), yr_, split)
+    write_pth_subsets(tif_recs, pth_recs, start_ct=0)
 
     # dir_ = os.path.join(home, 'tif_lst', 'valid')
     # pltt = os.path.join(home, 'plot_lst', 'valid')
