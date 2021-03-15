@@ -3,6 +3,7 @@ from glob import glob
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import Compose, Normalize
+import webdataset as wds
 
 N_CLASSES = 6
 N_BANDS = 6
@@ -39,7 +40,6 @@ class ITypeDataset(Dataset):
 
 
 def get_loader(config, split='train'):
-
     num_workers = 8
     split_dir = os.path.join(config['dataset_folder'], split)
     mean, std = config['norm']
@@ -87,6 +87,36 @@ def get_loaders(config):
     splits = ['train', 'test', 'valid']
     train, test, valid = (get_loader(config, split) for split in splits)
     return train, test, valid
+
+
+def get_tar_loaders(config):
+    splits = ['train', 'test', 'valid']
+    train, test, valid = (image_dataset(split, config) for split in splits)
+    return train, test, valid
+
+
+def image_dataset(mode, config):
+    """ Use for training and prediction of image datasets"""
+
+    def map_fn(item):
+        features = item['pth'][:, :, :6]
+        x = features.float()
+        x = x.permute((2, 0, 1)).float()
+        y = item['pth'][:, :, -1].long()
+        return x, y
+
+    data_dir = config['dataset_folder']
+    loc = os.path.join(data_dir, mode)
+    urls = find_archives(loc)
+    dataset = wds.Dataset(urls).decode('torchl').map(map_fn).batched(config['batch_size'])
+    return dataset
+
+
+def find_archives(path):
+    tar_list = []
+    for top_dir, dir_list, obj_list in os.walk(path):
+        tar_list.extend([os.path.join(top_dir, obj) for obj in obj_list if obj.endswith('.tar')])
+    return tar_list
 
 
 if __name__ == '__main__':
