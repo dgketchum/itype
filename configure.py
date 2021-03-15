@@ -40,6 +40,8 @@ def get_config(model='unet', mode='six_channel'):
         config['dataset_folder'] = data
 
         config['batch_size'] = 12 * device_ct
+        if config['batch_size'] < 1:
+            config['batch_size'] = 2
         config['input_dim'] = BANDS
         config['sample_n'] = [17227321802,
                               1737714929,

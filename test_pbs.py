@@ -42,5 +42,6 @@ if __name__ == '__main__':
         root = '/nobackup/dketchu1/itype'
     data = os.path.join(root, 'pth_snt', '2019')
     plots = os.path.join(root, 'images')
-    get_config('unet')
+    conf = get_config('unet')
+    write_test_image(conf, plots)
 # ========================= EOF ====================================================================
