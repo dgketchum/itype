@@ -63,7 +63,7 @@ def predict(config, plot=False):
         if plot:
             out_fig = os.path.join(config['res_dir'], 'figures', '{}.png'.format(i))
             print('write {}'.format(out_fig))
-            plot_prediction(image, pred_img, y, out_file=out_fig)
+            plot_prediction(image, y, pred_img, out_file=out_fig)
 
         confusion += get_conf_matrix(y_flat[mask], pred_flat[mask], n_class)
 
@@ -73,27 +73,32 @@ def predict(config, plot=False):
     print('F1 {:.2f},'.format(f1))
 
 
-def plot_prediction(x, pred, label, out_file=None):
+def plot_prediction(x, label, pred=None, out_file=None):
     cmap_label = colors.ListedColormap(['white', 'green', 'yellow', 'blue', 'pink', 'grey'])
     bounds_l = [0, 1, 2, 3, 4, 5]
     bound_norm_l = colors.BoundaryNorm(bounds_l, len(bounds_l))
 
-    cmap_pred = colors.ListedColormap(['green', 'yellow', 'blue', 'pink', 'grey'])
-    bounds_p = [1, 2, 3, 4, 5]
-    bound_norm_p = colors.BoundaryNorm(bounds_p, len(bounds_p))
+    if pred:
+        cmap_pred = colors.ListedColormap(['green', 'yellow', 'blue', 'pink', 'grey'])
+        bounds_p = [1, 2, 3, 4, 5]
+        bound_norm_p = colors.BoundaryNorm(bounds_p, len(bounds_p))
 
     batch_sz = x.shape[0]
+
     for i in range(batch_sz):
+
         a = x[i, :, :]
-        fig, ax = plt.subplots(ncols=5, nrows=1, figsize=(20, 10))
+
+        if pred:
+            fig, ax = plt.subplots(ncols=5, nrows=1, figsize=(20, 10))
+        else:
+            fig, ax = plt.subplots(ncols=4, nrows=1, figsize=(20, 10))
+
         r, g, b = a[:, :, 0].astype('uint8'), a[:, :, 1].astype('uint8'), a[:, :, 2].astype('uint8')
         rgb = np.dstack([r, g, b])
 
         mx_ndvi = a[:, :, 5]
         std_ndvi = a[:, :, 4]
-
-        label_ = label[i, :, :]
-        pred_ = pred[i, :, :]
 
         ax[0].imshow(rgb)
         ax[0].set(xlabel='image')
@@ -104,11 +109,14 @@ def plot_prediction(x, pred, label, out_file=None):
         ax[2].imshow(std_ndvi, cmap='cool')
         ax[2].set(xlabel='std_ndvi')
 
+        label_ = label[i, :, :]
         ax[3].imshow(label_, cmap=cmap_label, norm=bound_norm_l)
         ax[3].set(xlabel='label {}'.format(np.unique(label_)))
 
-        ax[4].imshow(pred_, cmap=cmap_pred, norm=bound_norm_p)
-        ax[4].set(xlabel='pred {}'.format(np.unique(pred_)))
+        if pred:
+            pred_ = pred[i, :, :]
+            ax[4].imshow(pred_, cmap=cmap_pred, norm=bound_norm_p)
+            ax[4].set(xlabel='pred {}'.format(np.unique(pred_)))
 
         out_ = out_file.replace('.png', '_{}.png'.format(i))
         plt.tight_layout()

@@ -33,7 +33,8 @@ def train_epoch(model, optimizer, criterion, loader, config):
         torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
         if (i + 1) % config['display_step'] == 0:
-            print('Train Step {}, Loss: {:.4f}'.format(i + 1, mean_loss))
+            print('Train Step {}, Loss: {:.4f} in {} min'.format(i + 1, mean_loss,
+                                                                 (datetime.now() - ts) / 60.))
 
     mean_loss = mean_loss / (i + 1)
     t_delta = datetime.now() - ts
@@ -98,7 +99,6 @@ def overall_performance(config, conf):
 
 
 def train(config):
-
     writer = SummaryWriter(config['res_dir'])
 
     np.random.seed(config['rdm_seed'])
@@ -108,6 +108,7 @@ def train(config):
     device = torch.device(config['device'])
 
     train_loader, test_loader, val_loader = get_loaders(config)
+    # train_loader, test_loader, val_loader = get_tar_loaders(config)
     model = get_model(config)
     if torch.cuda.device_count() > 1:
         print(torch.cuda.device_count(), "GPUs")

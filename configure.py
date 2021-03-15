@@ -13,7 +13,9 @@ N_CLASSES = 6
 
 
 def get_config(model='clstm', mode='six_channel'):
-    data = '/media/hdisk/itype/pth_snt'
+    data = '/home/dgketchum/itype/pth_snt/2019'
+    if not os.path.isdir(data):
+        data = '/nobackup/dketchu1/itype/pth_snt/2019'
 
     device_ct = torch.cuda.device_count()
 
@@ -35,9 +37,9 @@ def get_config(model='clstm', mode='six_channel'):
 
     if config['model'] == 'unet':
         config['dataset_folder'] = data
-        config['batch_size'] = 4 * device_ct
+        config['batch_size'] = 12 * device_ct
         config['input_dim'] = BANDS
-        config['sample_n'] = [1012505459, 337955249, 43964057, 153976261, 222513580, 69336274]
+        config['sample_n'] = [17227321802,  1737714929,   813083261,  1876868565,  6397630789,  3290628014]
         config['seed'] = 121
         config['lr'] = 0.0001
         config['res_dir'] = os.path.join(path[0], 'models', config['model'], 'results')
