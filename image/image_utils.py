@@ -53,6 +53,7 @@ def read_tif(f):
     """ Read geotiff to image and label ndarray"""
 
     with rasterio.open(f, 'r') as src:
+        print(f)
         img = src.read()
 
     img = img.transpose(1, 2, 0)
