@@ -12,7 +12,7 @@ BANDS = 6
 N_CLASSES = 6
 
 
-def get_config(model='clstm', mode='six_channel'):
+def get_config(model='unet', mode='six_channel'):
     data = '/home/dgketchum/itype/pth_snt/2019'
     if not os.path.isdir(data):
         data = '/nobackup/dketchu1/itype/pth_snt/2019'
@@ -26,6 +26,7 @@ def get_config(model='clstm', mode='six_channel'):
               'display_step': 1000,
               'epochs': 100,
               'num_classes': N_CLASSES,
+              'device_count': device_ct,
               'device': 'cuda:0',
               'num_workers': 1,
               'pooling': 'mean_std',
@@ -37,9 +38,15 @@ def get_config(model='clstm', mode='six_channel'):
 
     if config['model'] == 'unet':
         config['dataset_folder'] = data
+
         config['batch_size'] = 12 * device_ct
         config['input_dim'] = BANDS
-        config['sample_n'] = [17227321802,  1737714929,   813083261,  1876868565,  6397630789,  3290628014]
+        config['sample_n'] = [17227321802,
+                              1737714929,
+                              813083261,
+                              1876868565,
+                              6397630789,
+                              3290628014]
         config['seed'] = 121
         config['lr'] = 0.0001
         config['res_dir'] = os.path.join(path[0], 'models', config['model'], 'results')
