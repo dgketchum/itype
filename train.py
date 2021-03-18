@@ -45,6 +45,7 @@ def main(model, mode):
     trainer = Trainer(
         precision=16,
         min_epochs=100,
+        limit_val_batches=250,
         gpus=config['device_ct'],
         num_nodes=config['node_ct'],
         callbacks=[checkpoint_callback, stop_callback],
