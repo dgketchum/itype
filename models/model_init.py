@@ -5,8 +5,7 @@ def get_model(config):
     model = None
 
     if config['model'] == 'unet':
-        model_config = dict(n_channels=config['input_dim'], n_classes=config['num_classes'])
-        model = UNet(**model_config)
+        model = UNet(config)
 
     return model
 

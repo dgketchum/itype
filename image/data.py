@@ -1,9 +1,10 @@
 import os
 from glob import glob
+from typing import Optional
+
 import torch
 from torch.utils.data import Dataset, DataLoader
-from torchvision.transforms import Compose, Normalize
-import webdataset as wds
+import pytorch_lightning as pl
 
 N_CLASSES = 6
 N_BANDS = 6
@@ -39,18 +40,78 @@ class ITypeDataset(Dataset):
         return len(self.img_paths)
 
 
+class ITypeDataModule(pl.LightningDataModule):
+
+    def setup(self, stage: Optional[str] = None):
+        pass
+
+    def prepare_data(self, *args, **kwargs):
+        pass
+
+    def __init__(self, config):
+        pl.LightningDataModule.__init__(self, config)
+        self.num_workers = config['num_workers']
+        self.data_dir = os.path.join(config['dataset_folder'])
+        self.mean, self.std = config['norm']
+        self.batch_sz = config['batch_size']
+
+    def train_dataloader(self):
+        train_dir = os.path.join(self.data_dir, 'train')
+        train_ds = ITypeDataset(train_dir, transforms=None)
+        dl = DataLoader(
+            train_ds,
+            shuffle=True,
+            batch_size=self.batch_sz,
+            num_workers=self.num_workers,
+            drop_last=True,
+            pin_memory=True,
+            collate_fn=self.collate_fn)
+        return dl
+
+    def val_loader(self):
+        val_dir = os.path.join(self.data_dir, 'valid')
+        valid_ds = ITypeDataset(val_dir, transforms=None)
+        dl = DataLoader(
+            valid_ds,
+            shuffle=False,
+            batch_size=self.batch_sz,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            collate_fn=self.collate_fn)
+        return dl
+
+    def test_loader(self):
+        test_dir = os.path.join(self.data_dir, 'test')
+        test_ds = ITypeDataset(test_dir, transforms=None)
+        dl = DataLoader(
+            test_ds,
+            shuffle=False,
+            batch_size=self.batch_sz,
+            num_workers=self.num_workers,
+            pin_memory=True,
+            collate_fn=self.collate_fn)
+        return dl
+
+    @staticmethod
+    def collate_fn(data):
+        x, y = [], []
+        for d in data:
+            if d:
+                x.append(d[0]), y.append(d[1])
+        return torch.stack(x), torch.stack(y)
+
+
 def get_loader(config, split='train'):
     num_workers = 8
     split_dir = os.path.join(config['dataset_folder'], split)
-    mean, std = config['norm']
     batch_sz = config['batch_size']
 
-    data_transforms = {
-        'train': Compose([
-            Normalize(mean, std)]),
-        'valid': Compose([
-            Normalize(mean, std)]),
-    }
+    def collate_fn(data):
+        x, y = [], []
+        for d in data:
+            if d:
+                x.append(d[0]), y.append(d[1])
+        return torch.stack(x), torch.stack(y)
 
     if split == 'train':
         train_ds = ITypeDataset(split_dir, transforms=None)
@@ -75,48 +136,10 @@ def get_loader(config, split='train'):
     return dl
 
 
-def collate_fn(data):
-    x, y = [], []
-    for d in data:
-        if d:
-            x.append(d[0]), y.append(d[1])
-    return torch.stack(x), torch.stack(y)
-
-
 def get_loaders(config):
     splits = ['train', 'test', 'valid']
     train, test, valid = (get_loader(config, split) for split in splits)
     return train, test, valid
-
-
-def get_tar_loaders(config):
-    splits = ['train', 'test', 'valid']
-    train, test, valid = (image_dataset(split, config) for split in splits)
-    return train, test, valid
-
-
-def image_dataset(mode, config):
-    """ Use for training and prediction of image datasets"""
-
-    def map_fn(item):
-        features = item['pth'][:, :, :6]
-        x = features.float()
-        x = x.permute((2, 0, 1)).float()
-        y = item['pth'][:, :, -1].long()
-        return x, y
-
-    data_dir = config['dataset_folder']
-    loc = os.path.join(data_dir, mode)
-    urls = find_archives(loc)
-    dataset = wds.Dataset(urls).decode('torchl').map(map_fn).batched(config['batch_size'])
-    return dataset
-
-
-def find_archives(path):
-    tar_list = []
-    for top_dir, dir_list, obj_list in os.walk(path):
-        tar_list.extend([os.path.join(top_dir, obj) for obj in obj_list if obj.endswith('.tar')])
-    return tar_list
 
 
 if __name__ == '__main__':

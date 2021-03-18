@@ -8,69 +8,30 @@ from matplotlib import colors
 
 from learning.metrics import get_conf_matrix, confusion_matrix_analysis
 from models.model_init import get_model
+from models.unet.unet import UNet
 from image.data import get_loaders
 from configure import get_config
 
 
-def pprint_confusion(a):
-    np.set_printoptions(precision=0)
-    np.seterr(divide='ignore')
-    a = np.log10(a)
-    a[np.isinf(a)] = 0.0
-    print(a)
-
-
-def inv_norm(x, config):
-    """ get original image data (1 X H x W x T x C ) ==> ( H x W x C )"""
-    mean_std = config['norm']
-    x = x.squeeze()
-    x = x.permute(0, 2, 3, 1)
-    # mean, std = torch.tensor(mean_std[0]), torch.tensor(mean_std[1])
-    # x = x.mul_(std).add_(mean)
-    x = x.detach().numpy()
-    return x
-
-
-def predict(config, plot=False):
+def predict(config, model_path=None, plot=False):
     device = torch.device(config['device'])
-
-    n_class = config['num_classes']
-    confusion = np.zeros((n_class, n_class))
-
     val_loader = get_loaders(config)[2]
-    model = get_model(config)
-    check_pt = torch.load(os.path.join(config['res_dir'], 'model.pth.tar'))
-    optimizer = torch.optim.Adam(model.parameters())
-    model.load_state_dict(check_pt['state_dict'], strict=False)
 
+    model = UNet.load_from_checkpoint(model_path, strict=False)
+    model.freeze()
     model.to(device)
-    optimizer.load_state_dict(check_pt['optimizer'])
-    model.eval()
 
     for i, (x, y) in enumerate(val_loader):
-        image = inv_norm(deepcopy(x), config)
+        image = deepcopy(x).cpu().numpy()
         x = x.to(device)
-
-        with torch.no_grad():
-            out = model(x)
-            pred_img = torch.argmax(out, dim=1).cpu().numpy()
-            pred_flat = pred_img.flatten()
-
+        out = model(x)
+        pred_img = torch.argmax(out, dim=1).cpu().numpy()
         y = y.numpy()
-        mask = (y > 0).flatten()
-        y_flat = y.flatten()
 
         if plot:
             out_fig = os.path.join(config['res_dir'], 'figures', '{}.png'.format(i))
             print('write {}'.format(out_fig))
             plot_prediction(image, y, pred_img, out_file=out_fig)
-
-        confusion += get_conf_matrix(y_flat[mask], pred_flat[mask], n_class)
-
-    _, overall = confusion_matrix_analysis(confusion)
-    f1 = overall['f1-score']
-    pprint_confusion(confusion[-5:, -5:])
-    print('F1 {:.2f},'.format(f1))
 
 
 def plot_prediction(x, label, pred=None, out_file=None):
@@ -78,7 +39,7 @@ def plot_prediction(x, label, pred=None, out_file=None):
     bounds_l = [0, 1, 2, 3, 4, 5]
     bound_norm_l = colors.BoundaryNorm(bounds_l, len(bounds_l))
 
-    if pred:
+    if isinstance(pred, np.ndarray):
         cmap_pred = colors.ListedColormap(['green', 'yellow', 'blue', 'pink', 'grey'])
         bounds_p = [1, 2, 3, 4, 5]
         bound_norm_p = colors.BoundaryNorm(bounds_p, len(bounds_p))
@@ -89,7 +50,7 @@ def plot_prediction(x, label, pred=None, out_file=None):
 
         a = x[i, :, :]
 
-        if pred:
+        if isinstance(pred, np.ndarray):
             fig, ax = plt.subplots(ncols=5, nrows=1, figsize=(20, 10))
         else:
             fig, ax = plt.subplots(ncols=4, nrows=1, figsize=(20, 10))
@@ -113,7 +74,7 @@ def plot_prediction(x, label, pred=None, out_file=None):
         ax[3].imshow(label_, cmap=cmap_label, norm=bound_norm_l)
         ax[3].set(xlabel='label {}'.format(np.unique(label_)))
 
-        if pred:
+        if isinstance(pred, np.ndarray):
             pred_ = pred[i, :, :]
             ax[4].imshow(pred_, cmap=cmap_pred, norm=bound_norm_p)
             ax[4].set(xlabel='pred {}'.format(np.unique(pred_)))
@@ -129,5 +90,7 @@ def plot_prediction(x, label, pred=None, out_file=None):
 
 if __name__ == '__main__':
     config = get_config('unet')
-    predict(config, plot=True)
+    check_dir = '/home/dgketchum/PycharmProjects/itype/models/from_nas'
+    checkpoint_path = os.path.join(check_dir, 'model-18MAR2021.pth.tar')
+    predict(config, model_path=checkpoint_path, plot=True)
 # ========================= EOF ====================================================================
