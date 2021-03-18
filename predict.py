@@ -1,13 +1,11 @@
 import os
-import numpy as np
 from copy import deepcopy
 
+import numpy as np
 import torch
 from matplotlib import pyplot as plt
 from matplotlib import colors
 
-from learning.metrics import get_conf_matrix, confusion_matrix_analysis
-from models.model_init import get_model
 from models.unet.unet import UNet
 from image.data import get_loaders
 from configure import get_config

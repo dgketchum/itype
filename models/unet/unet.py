@@ -19,6 +19,8 @@ class UNet(pl.LightningModule):
     def __init__(self, channels=6, classes=6, bilinear=True):
         super(UNet, self).__init__()
 
+        self.config = None
+
         self.n_channels = channels
         self.n_classes = classes
         self.bilinear = bilinear
@@ -55,18 +57,12 @@ class UNet(pl.LightningModule):
         return logits
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.config['lr'])
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
         return optimizer
 
     def cross_entropy_loss(self, logits, labels):
-        # TODO: add class weights
-
-        # weights = torch.tensor(self.config['sample_n'], dtype=torch.float32)
-        # weights = weights / weights.sum()
-        # weights = 1.0 / weights
-        # weights = weights / weights.sum()
-        # weights = torch.FloatTensor(weights)
-        loss = nn.CrossEntropyLoss(ignore_index=0)
+        weights = torch.tensor(self.config['sample_n'], dtype=torch.float32, device=self.device)
+        loss = nn.CrossEntropyLoss(ignore_index=0, weight=weights)
         return loss(logits, labels)
 
     def training_step(self, batch, batch_idx):
@@ -75,7 +71,7 @@ class UNet(pl.LightningModule):
         loss = self.cross_entropy_loss(logits, y)
         self.log('train_loss', loss)
         pred = torch.softmax(logits, 1)
-        self.log('train_acc_step', self.train_acc(pred, y))
+        self.log('train_acc_step', self.train_acc(pred, y), prog_bar=True, logger=True)
         return {'loss': loss}
 
     def training_epoch_end(self, outputs):
@@ -87,17 +83,17 @@ class UNet(pl.LightningModule):
         loss = self.cross_entropy_loss(logits, y)
         self.log('val_loss', loss)
         pred = torch.softmax(logits, 1)
-        self.log('val_acc', self.valid_acc(pred, y))
-        self.log('val_f1', self.valid_f1(pred, y))
-        self.log('val_rec', self.valid_rec(pred, y))
-        self.log('val_prec', self.valid_prec(pred, y))
-        return {'val_loss': loss}
+        self.log('val_acc', self.valid_acc(pred, y), on_epoch=True)
+        self.log('val_f1', self.valid_f1(pred, y), on_epoch=True)
+        self.log('val_rec', self.valid_rec(pred, y), on_epoch=True)
+        self.log('val_prec', self.valid_prec(pred, y), on_epoch=True)
+        return {'val_acc': self.valid_acc(pred, y)}
 
     @staticmethod
     def validation_end(outputs):
-        avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
-        tensorboard_logs = {'val_loss': avg_loss}
-        return {'avg_val_loss': avg_loss, 'log': tensorboard_logs}
+        avg_loss = torch.stack([x['val_acc'] for x in outputs]).mean()
+        tensorboard_logs = {'val_acc': avg_loss}
+        return {'avg_val_acc': avg_loss, 'log': tensorboard_logs}
 
     def __dataloader(self):
         itdl = ITypeDataModule(self.config)
@@ -114,6 +110,11 @@ class UNet(pl.LightningModule):
 
     def test_dataloader(self):
         return self.__dataloader()['test']
+
+    def configure_model(self, **config):
+        for name, val in config.items():
+            setattr(self, name, val)
+        self.config = config
 
 
 class DoubleConv(pl.LightningModule):

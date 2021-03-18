@@ -13,8 +13,9 @@ N_BANDS = 6
 
 class ITypeDataset(Dataset):
 
-    def __init__(self, data_dir, transforms=None):
+    def __init__(self, data_dir, mode, transforms=None):
         self.data_dir = data_dir
+        self.mode = mode
         self.img_paths = glob(os.path.join(data_dir, '*.pth'))
         self.transforms = transforms
 
@@ -22,7 +23,20 @@ class ITypeDataset(Dataset):
         img_path = self.img_paths[item]
         img = torch.load(img_path)
         img = img.permute(2, 0, 1)
-        features = img[:6, :, :].float()
+
+        if self.mode == 'grey':
+            features = img[0, :, :] * 0.2989 + img[1, :, :] * 0.5870 + img[2, :, :] * 0.1140
+            features = features.unsqueeze(0).float()
+        if self.mode == 'rgb':
+            features = img[:3, :, :].float()
+        if self.mode == 'rgbn':
+            features = img[:4, :, :].float()
+        if self.mode == 'rgbn_snt':
+            features = img[:6, :, :].float()
+        if self.mode == 'grey_snt':
+            grey = img[0, :, :] * 0.2989 + img[1, :, :] * 0.5870 + img[2, :, :] * 0.1140
+            features = torch.cat([img[4:6, :, :], grey], dim=0)
+
         label = img[-1, :, :].long()
 
         if not torch.isfinite(img).all():
@@ -42,22 +56,16 @@ class ITypeDataset(Dataset):
 
 class ITypeDataModule(pl.LightningDataModule):
 
-    def setup(self, stage: Optional[str] = None):
-        pass
-
-    def prepare_data(self, *args, **kwargs):
-        pass
-
     def __init__(self, config):
         pl.LightningDataModule.__init__(self, config)
         self.num_workers = config['num_workers']
         self.data_dir = os.path.join(config['dataset_folder'])
-        self.mean, self.std = config['norm']
         self.batch_sz = config['batch_size']
+        self.mode = config['mode']
 
     def train_dataloader(self):
         train_dir = os.path.join(self.data_dir, 'train')
-        train_ds = ITypeDataset(train_dir, transforms=None)
+        train_ds = ITypeDataset(train_dir, self.mode, transforms=None)
         dl = DataLoader(
             train_ds,
             shuffle=True,
@@ -70,7 +78,7 @@ class ITypeDataModule(pl.LightningDataModule):
 
     def val_loader(self):
         val_dir = os.path.join(self.data_dir, 'valid')
-        valid_ds = ITypeDataset(val_dir, transforms=None)
+        valid_ds = ITypeDataset(val_dir, self.mode, transforms=None)
         dl = DataLoader(
             valid_ds,
             shuffle=False,
@@ -82,7 +90,7 @@ class ITypeDataModule(pl.LightningDataModule):
 
     def test_loader(self):
         test_dir = os.path.join(self.data_dir, 'test')
-        test_ds = ITypeDataset(test_dir, transforms=None)
+        test_ds = ITypeDataset(test_dir, self.mode, transforms=None)
         dl = DataLoader(
             test_ds,
             shuffle=False,
@@ -99,6 +107,12 @@ class ITypeDataModule(pl.LightningDataModule):
             if d:
                 x.append(d[0]), y.append(d[1])
         return torch.stack(x), torch.stack(y)
+
+    def setup(self, stage: Optional[str] = None):
+        pass
+
+    def prepare_data(self, *args, **kwargs):
+        pass
 
 
 def get_loader(config, split='train'):

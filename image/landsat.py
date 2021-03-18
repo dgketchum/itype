@@ -3,28 +3,6 @@ import ee
 from datetime import datetime, timedelta
 
 
-def add_doy(image):
-    """ Add day-of-year image """
-    mask = ee.Date(image.get('system:time_start'))
-    day = ee.Image.constant(image.date().getRelative('day', 'year')).clip(image.geometry())
-    i = image.addBands(day.rename('DOY')).int().updateMask(mask)
-    return i
-
-
-def get_world_climate(proj):
-    n = list(range(1, 13))
-    months = [str(x).zfill(2) for x in n]
-    parameters = ['tavg', 'tmin', 'tmax', 'prec']
-    combinations = [(m, p) for m in months for p in parameters]
-
-    l = [ee.Image('WORLDCLIM/V1/MONTHLY/{}'.format(m)).select(p).resample('bilinear').reproject(crs=proj['crs'],
-                                                                                                scale=30) for m, p in
-         combinations]
-    # not sure how to do this without initializing the image with a constant
-    i = ee.Image(l)
-    return i
-
-
 def daily_landsat(year, roi):
     start = '{}-01-01'.format(year)
     end_date = '{}-01-01'.format(year + 1)
