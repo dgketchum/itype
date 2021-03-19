@@ -12,21 +12,22 @@ from configure import get_config
 
 
 def prepare_output(config):
-    dt = datetime.now().strftime('%Y.%m.%d.%H.%M-{}-{}'.format(config['model'], config['mode']))
-    new_dir = os.path.join(config['res_dir'], dt)
+    dt = datetime.now().strftime('{}-%Y.%m.%d.%H.%M-{}-{}'.format(config.machine,
+                                                                  config.model,
+                                                                  config.mode))
+    new_dir = os.path.join(config.res_dir, dt)
     os.makedirs(new_dir, exist_ok=True)
     os.makedirs(os.path.join(new_dir, 'checkpoints'), exist_ok=True)
     with open(os.path.join(new_dir, 'config.json'), 'w') as file:
-        file.write(json.dumps(config, indent=4))
+        file.write(json.dumps(vars(config), indent=4))
     return new_dir
 
 
-def main(model, mode, gpu=None):
+def main(params):
 
-    config = get_config(model, mode, gpu=gpu)
+    config = get_config(**vars(params))
 
-    model = UNet(channels=config['input_dim'], classes=config['n_classes'])
-    model.configure_model(**config)
+    model = UNet(config)
 
     log_dir = prepare_output(config)
     logger = TensorBoardLogger(log_dir, name='log')
@@ -47,10 +48,12 @@ def main(model, mode, gpu=None):
         precision=16,
         min_epochs=100,
         limit_val_batches=250,
-        gpus=config['device_ct'],
-        num_nodes=config['node_ct'],
+        overfit_batches=100,
+        gpus=config.device_ct,
+        num_nodes=config.node_ct,
         callbacks=[checkpoint_callback, stop_callback],
         log_gpu_memory='min_max',
+        progress_bar_refresh_rate=params.progress,
         log_every_n_steps=5,
         logger=logger)
 
@@ -59,9 +62,13 @@ def main(model, mode, gpu=None):
 
 if __name__ == '__main__':
     parser = ArgumentParser(add_help=False)
-    parser.add_argument('--model', required=True)
-    parser.add_argument('--mode', required=True)
-    parser.add_argument('--gpu', required=True)
+    parser.add_argument('--model', default='unet')
+    parser.add_argument('--mode', default='rgbn_snt')
+    parser.add_argument('--gpu', default='RTX')
+    parser.add_argument('--machine', default='pc')
+    parser.add_argument('--nodes', default=1)
+    parser.add_argument('--progress', default=0)
+    parser.add_argument('--workers', default=12)
     args = parser.parse_args()
-    main(args.model, args.mode, args.gpu)
+    main(args)
 # ========================================================================================

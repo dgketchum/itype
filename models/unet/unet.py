@@ -16,14 +16,11 @@ from image.data import ITypeDataModule
 
 
 class UNet(pl.LightningModule):
-    def __init__(self, channels=6, classes=6, bilinear=True):
+    def __init__(self, hparams, bilinear=True):
         super(UNet, self).__init__()
 
-        self.config = None
-
-        self.n_channels = channels
-        self.n_classes = classes
-        self.bilinear = bilinear
+        self.hparams = hparams
+        self.configure_model()
 
         self.inc = DoubleConv(self.n_channels, 64)
         self.down1 = Down(64, 128)
@@ -61,7 +58,7 @@ class UNet(pl.LightningModule):
         return optimizer
 
     def cross_entropy_loss(self, logits, labels):
-        weights = torch.tensor(self.config['sample_n'], dtype=torch.float32, device=self.device)
+        weights = torch.tensor(self.hparams['sample_n'], dtype=torch.float32, device=self.device)
         loss = nn.CrossEntropyLoss(ignore_index=0, weight=weights)
         return loss(logits, labels)
 
@@ -96,7 +93,7 @@ class UNet(pl.LightningModule):
         return {'avg_val_acc': avg_loss, 'log': tensorboard_logs}
 
     def __dataloader(self):
-        itdl = ITypeDataModule(self.config)
+        itdl = ITypeDataModule(self.hparams)
         loaders = {'train': itdl.train_dataloader(),
                    'val': itdl.val_loader(),
                    'test': itdl.test_loader()}
@@ -111,10 +108,9 @@ class UNet(pl.LightningModule):
     def test_dataloader(self):
         return self.__dataloader()['test']
 
-    def configure_model(self, **config):
-        for name, val in config.items():
+    def configure_model(self):
+        for name, val in self.hparams.items():
             setattr(self, name, val)
-        self.config = config
 
 
 class DoubleConv(pl.LightningModule):
