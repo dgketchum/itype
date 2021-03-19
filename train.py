@@ -1,6 +1,7 @@
 import os
 import json
 from datetime import datetime
+from argparse import ArgumentParser
 
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
@@ -20,9 +21,9 @@ def prepare_output(config):
     return new_dir
 
 
-def main(model, mode):
+def main(model, mode, gpu=None):
 
-    config = get_config(model, mode)
+    config = get_config(model, mode, gpu=gpu)
 
     model = UNet(channels=config['input_dim'], classes=config['n_classes'])
     model.configure_model(**config)
@@ -57,7 +58,10 @@ def main(model, mode):
 
 
 if __name__ == '__main__':
-    mode_ = 'rgbn_snt'
-    model_ = 'unet'
-    main(model_, mode_)
+    parser = ArgumentParser(add_help=False)
+    parser.add_argument('--model', required=True)
+    parser.add_argument('--mode', required=True)
+    parser.add_argument('--gpu', required=True)
+    args = parser.parse_args()
+    main(args.model, args.mode, args.gpu)
 # ========================================================================================

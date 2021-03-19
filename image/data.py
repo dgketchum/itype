@@ -27,15 +27,22 @@ class ITypeDataset(Dataset):
         if self.mode == 'grey':
             features = img[0, :, :] * 0.2989 + img[1, :, :] * 0.5870 + img[2, :, :] * 0.1140
             features = features.unsqueeze(0).float()
-        if self.mode == 'rgb':
+        elif self.mode == 'rgb':
             features = img[:3, :, :].float()
-        if self.mode == 'rgbn':
+        elif self.mode == 'rgbn':
             features = img[:4, :, :].float()
-        if self.mode == 'rgbn_snt':
+        elif self.mode == 'rgbn_snt':
             features = img[:6, :, :].float()
-        if self.mode == 'grey_snt':
+        elif self.mode == 'grey_snt':
             grey = img[0, :, :] * 0.2989 + img[1, :, :] * 0.5870 + img[2, :, :] * 0.1140
             features = torch.cat([img[4:6, :, :], grey], dim=0)
+        else:
+            raise KeyError(
+                'Must choose from {} image modes'.format(['grey',
+                                                          'rgb',
+                                                          'rgbn',
+                                                          'rgbn_snt',
+                                                          'grey_snt']))
 
         label = img[-1, :, :].long()
 
@@ -119,6 +126,7 @@ def get_loader(config, split='train'):
     num_workers = 8
     split_dir = os.path.join(config['dataset_folder'], split)
     batch_sz = config['batch_size']
+    mode = config['mode']
 
     def collate_fn(data):
         x, y = [], []
@@ -128,7 +136,7 @@ def get_loader(config, split='train'):
         return torch.stack(x), torch.stack(y)
 
     if split == 'train':
-        train_ds = ITypeDataset(split_dir, transforms=None)
+        train_ds = ITypeDataset(split_dir, mode, transforms=None)
         dl = DataLoader(
             train_ds,
             shuffle=True,
@@ -138,7 +146,7 @@ def get_loader(config, split='train'):
             pin_memory=True,
             collate_fn=collate_fn)
     else:
-        valid_ds = ITypeDataset(split_dir, transforms=None)
+        valid_ds = ITypeDataset(split_dir, mode, transforms=None)
         dl = DataLoader(
             valid_ds,
             shuffle=False,
