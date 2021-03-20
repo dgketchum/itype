@@ -35,6 +35,7 @@ class ITypeDataset(Dataset):
             features = img[:6, :, :].float()
         elif self.mode == 'grey_snt':
             grey = img[0, :, :] * 0.2989 + img[1, :, :] * 0.5870 + img[2, :, :] * 0.1140
+            grey = grey.unsqueeze(0).float()
             features = torch.cat([img[4:6, :, :], grey], dim=0)
         else:
             raise KeyError(
