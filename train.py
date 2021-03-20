@@ -48,7 +48,7 @@ def main(params):
         precision=16,
         min_epochs=100,
         limit_val_batches=250,
-        overfit_batches=100,
+        # overfit_batches=100,
         gpus=config.device_ct,
         num_nodes=config.node_ct,
         callbacks=[checkpoint_callback, stop_callback],
@@ -66,9 +66,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode', default='rgbn_snt')
     parser.add_argument('--gpu', default='RTX')
     parser.add_argument('--machine', default='pc')
-    parser.add_argument('--nodes', default=1)
-    parser.add_argument('--progress', default=0)
-    parser.add_argument('--workers', default=12)
+    parser.add_argument('--nodes', default=1, type=int)
+    parser.add_argument('--progress', default=0, type=int)
+    parser.add_argument('--workers', default=12, type=int)
     args = parser.parse_args()
     main(args)
 # ========================================================================================

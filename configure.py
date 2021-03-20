@@ -20,13 +20,13 @@ def get_config(**params):
     experiments = {'grey': {'n_channels': 1,
                             'batch_size': int(batch * 24)},
                    'rgb': {'n_channels': 3,
-                           'batch_size': int(batch * 48)},
+                           'batch_size': int(batch * 24)},
                    'rgbn': {'n_channels': 4,
-                            'batch_size': int(batch * 36)},
+                            'batch_size': int(batch * 24)},
                    'rgbn_snt': {'n_channels': 6,
                                 'batch_size': int(batch * 24)},
                    'grey_snt': {'n_channels': 3,
-                                'batch_size': int(batch * 48)}}
+                                'batch_size': int(batch * 24)}}
 
     print('{} batch factor: {}'.format(params.gpu, batch))
 
