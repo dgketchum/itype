@@ -12,7 +12,7 @@ N_CLASSES = 6
 def get_config(**params):
     params = Namespace(**params)
 
-    gpu_map = {'V100': 3,
+    gpu_map = {'V100': 1.5,
                'RTX': 1,
                'K40': 1.5}
     batch = gpu_map[params.gpu]

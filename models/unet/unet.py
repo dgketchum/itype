@@ -79,12 +79,30 @@ class UNet(pl.LightningModule):
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
         self.log('val_loss', loss)
+        mask = y.flatten() > 0
+        y = y.flatten()[mask]
         pred = torch.softmax(logits, 1)
+        pred = torch.argmax(pred, dim=1).flatten()[mask]
         self.log('val_acc', self.valid_acc(pred, y), on_epoch=True)
         self.log('val_f1', self.valid_f1(pred, y), on_epoch=True)
         self.log('val_rec', self.valid_rec(pred, y), on_epoch=True)
         self.log('val_prec', self.valid_prec(pred, y), on_epoch=True)
         return {'val_acc': self.valid_acc(pred, y)}
+
+    def test_step(self, batch, batch_idx):
+        x, y = batch
+        logits = self.forward(x)
+        loss = self.cross_entropy_loss(logits, y)
+        self.log('test_loss', loss)
+        mask = y.flatten() > 0
+        y = y.flatten()[mask]
+        pred = torch.softmax(logits, 1)
+        pred = torch.argmax(pred, dim=1).flatten()[mask]
+        self.log('test_acc', self.valid_acc(pred, y), on_epoch=True)
+        self.log('test_f1', self.valid_f1(pred, y), on_epoch=True)
+        self.log('test_rec', self.valid_rec(pred, y), on_epoch=True)
+        self.log('test_prec', self.valid_prec(pred, y), on_epoch=True)
+        return {'test_acc': self.valid_acc(pred, y)}
 
     @staticmethod
     def validation_end(outputs):

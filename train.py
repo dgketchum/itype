@@ -18,6 +18,7 @@ def prepare_output(config):
     new_dir = os.path.join(config.res_dir, dt)
     os.makedirs(new_dir, exist_ok=True)
     os.makedirs(os.path.join(new_dir, 'checkpoints'), exist_ok=True)
+    os.makedirs(os.path.join(new_dir, 'figures'), exist_ok=True)
     with open(os.path.join(new_dir, 'config.json'), 'w') as file:
         file.write(json.dumps(vars(config), indent=4))
     return new_dir
@@ -47,28 +48,28 @@ def main(params):
     trainer = Trainer(
         precision=16,
         min_epochs=100,
-        limit_val_batches=250,
-        # overfit_batches=100,
+        limit_val_batches=1000,
         gpus=config.device_ct,
         num_nodes=config.node_ct,
         callbacks=[checkpoint_callback, stop_callback],
-        log_gpu_memory='min_max',
         progress_bar_refresh_rate=params.progress,
+        auto_scale_batch_size=True,
         log_every_n_steps=5,
         logger=logger)
 
+    trainer.tune(model)
     trainer.fit(model)
 
 
 if __name__ == '__main__':
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--model', default='unet')
-    parser.add_argument('--mode', default='rgbn_snt')
+    parser.add_argument('--mode', default='grey_snt')
     parser.add_argument('--gpu', default='RTX')
     parser.add_argument('--machine', default='pc')
     parser.add_argument('--nodes', default=1, type=int)
     parser.add_argument('--progress', default=0, type=int)
-    parser.add_argument('--workers', default=16, type=int)
+    parser.add_argument('--workers', default=12, type=int)
     args = parser.parse_args()
     main(args)
 # ========================================================================================
