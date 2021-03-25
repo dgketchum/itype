@@ -30,7 +30,7 @@ def get_config(**params):
 
     print('{} batch factor: {}'.format(params.gpu, batch))
 
-    data = '/media/nvm/itype/pth_snt/2019'
+    data = '/media/nvm/itype_/pth_snt/2019'
     if not os.path.isdir(data):
         data = '/nobackup/dketchu1/itype/pth_snt/2019'
 

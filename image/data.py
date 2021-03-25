@@ -17,6 +17,12 @@ class ITypeDataset(Dataset):
         self.data_dir = data_dir
         self.mode = mode
         self.img_paths = glob(os.path.join(data_dir, '*.pth'))
+
+        # add test to train for two-way train/valid split
+        if 'train' in data_dir:
+            add_paths = glob(os.path.join(data_dir.replace('train', 'test'), '*.pth'))
+            self.img_paths += add_paths
+
         self.transforms = transforms
 
     def __getitem__(self, item):

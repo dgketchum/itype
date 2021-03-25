@@ -7,6 +7,7 @@ and computer-assisted intervention (pp. 234-241).
 Springer, Cham.
 """
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -22,17 +23,18 @@ class UNet(pl.LightningModule):
         self.hparams = hparams
         self.configure_model()
 
-        self.inc = DoubleConv(self.n_channels, 64)
-        self.down1 = Down(64, 128)
-        self.down2 = Down(128, 256)
-        self.down3 = Down(256, 512)
+        seed = 32
+        self.inc = DoubleConv(self.n_channels, seed)
+        self.down1 = Down(seed, seed * 2)
+        self.down2 = Down(seed * 2, seed * 4)
+        self.down3 = Down(seed * 4, seed * 8)
         factor = 2 if bilinear else 1
-        self.down4 = Down(512, 1024 // factor)
-        self.up1 = Up(1024, 512 // factor, bilinear)
-        self.up2 = Up(512, 256 // factor, bilinear)
-        self.up3 = Up(256, 128 // factor, bilinear)
-        self.up4 = Up(128, 64, bilinear)
-        self.outc = OutConv(64, self.n_classes)
+        self.down4 = Down(seed * 8, seed * 16 // factor)
+        self.up1 = Up(seed * 16, seed * 8 // factor, bilinear)
+        self.up2 = Up(seed * 8, seed * 4 // factor, bilinear)
+        self.up3 = Up(seed * 4, seed * 2 // factor, bilinear)
+        self.up4 = Up(seed * 2, seed, bilinear)
+        self.outc = OutConv(seed, self.n_classes)
 
         self.train_acc = pl.metrics.Accuracy()
         self.valid_acc = pl.metrics.Accuracy()
@@ -55,7 +57,16 @@ class UNet(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                               mode='max',
+                                                               factor=0.5,
+                                                               patience=5,
+                                                               verbose=True)
+
+        return {'optimizer': optimizer,
+                'lr_scheduler': {'scheduler': scheduler,
+                                 'interval': 'epoch',
+                                 'monitor': 'val_acc'}}
 
     def cross_entropy_loss(self, logits, labels):
         weights = torch.tensor(self.hparams['sample_n'], dtype=torch.float32, device=self.device)
@@ -67,8 +78,6 @@ class UNet(pl.LightningModule):
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
         self.log('train_loss', loss)
-        pred = torch.softmax(logits, 1)
-        self.log('train_acc_step', self.train_acc(pred, y), prog_bar=True, logger=True)
         return {'loss': loss}
 
     def training_epoch_end(self, outputs):

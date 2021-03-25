@@ -15,7 +15,6 @@ SUBSET_SZ = 256
 
 
 def write_pth_subsets(in_, _out, start_ct=None):
-
     def tile(a):
         s = SUBSET_SZ
         t = [a[x:x + s, y:y + s] for x in range(0, a.shape[0], s) for y in range(0, a.shape[1], s)]
@@ -78,12 +77,30 @@ def read_tif(f):
     return features, label
 
 
-def write_image_plots(in_, out):
+def write_tif_image_plots(in_, out):
     files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.tif')]
     for j, f in enumerate(files_):
-        features, label = read_tif(f)
-        fig_name = os.path.join(out, '{}_lst_.png'.format(j))
+        try:
+            features, label = read_tif(f)
+            fig_name = os.path.join(out, '{}.png'.format(os.path.basename(f)))
+            plot_image_data(features, label, out_file=fig_name)
+        except TypeError:
+            pass
+    return None
+
+
+def write_pth_image_plots(in_, out):
+    files_ = [os.path.join(in_, x) for x in os.listdir(in_) if x.endswith('.pth')]
+    for j, f in enumerate(files_):
+        print(f)
+        img = torch.load(f)
+        img = img.numpy()
+        features = img[:, :, :6].astype(np.float)
+        label = img[:, :, -1].astype(np.int)
+        fig_name = os.path.join(out, '{}.png'.format(os.path.basename(f)))
         plot_image_data(features, label, out_file=fig_name)
+        if j > 10:
+            break
     return None
 
 
@@ -162,17 +179,18 @@ def get_transforms(in_, out_norm):
 
 
 if __name__ == '__main__':
-    home = '/home/dgketchum/itype'
+    home = '/media/nvm/itype'
     instrument = 'snt'
     yr_ = str(2019)
     split = 'train'
     tif_recs = os.path.join(home, 'tif_{}'.format(instrument), yr_, split)
     pth_recs = os.path.join(home, 'pth_{}'.format(instrument), yr_, split)
-    write_pth_subsets(tif_recs, pth_recs, start_ct=0)
+    # write_pth_subsets(tif_recs, pth_recs, start_ct=0)
 
-    # dir_ = os.path.join(home, 'tif_lst', 'valid')
-    # pltt = os.path.join(home, 'plot_lst', 'valid')
-    # write_image_plots(dir_, pltt)
+    for split in ['test', 'train', 'valid']:
+        dir_ = os.path.join(home, 'pth_{}'.format(instrument), '2019', split)
+        pltt = os.path.join(home, 'plot_pth_{}'.format(instrument))
+        write_pth_image_plots(dir_, pltt)
 
     # norms = os.path.join(home, 'normalize')
     # dir_ = os.path.join(home, 'pth_{}'.format(instrument), 'train')
