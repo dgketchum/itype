@@ -25,7 +25,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = '/home/dgketchum/ssebop-montana-5
 
 ee.Initialize()
 
-GS_BUCKET = 'itype'
+GS_BUCKET = 'itype_ndvi'
 
 KERNEL_SIZE = 512
 KERNEL_SHAPE = [KERNEL_SIZE, KERNEL_SIZE]
@@ -124,7 +124,7 @@ class ITypeDataStack(object):
         naip = ee.ImageCollection('USDA/NAIP/DOQQ').filterDate(start, end).mosaic()
 
         if self.satellite == 'sentinel':
-            sent = sentinel_composite(start, end, roi)
+            sent = sentinel_composite(2019, roi)
             naip = naip.addBands(sent)
 
         if self.satellite == 'landsat':
@@ -160,7 +160,7 @@ class ITypeDataStack(object):
 
 
 if __name__ == '__main__':
-    for split in ['valid', 'test']:
-        stack = ITypeDataStack(2009, split=split, satellite='landsat')
+    for split in ['train', 'valid', 'test']:
+        stack = ITypeDataStack(2019, split=split, satellite='sentinel')
         stack.export_geotiff(overwrite=True)
 # ========================= EOF ====================================================================
