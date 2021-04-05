@@ -5,6 +5,7 @@ from pathlib import Path
 
 from matplotlib import pyplot as plt
 from matplotlib import colors
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pytorch_lightning import Trainer
 
 from models.unet.unet import UNet
@@ -20,7 +21,7 @@ def main(params):
 
     model = UNet.load_from_checkpoint(checkpoint_path=checkpoint)
     model.freeze()
-    model.hparams.dataset_folder = '/media/nvm/itype_/pth_snt/2019'
+    model.hparams.dataset_folder = '/media/nvm/itype/pth_snt/2019'
     model.hparams.batch_size = 1
 
     if params.metrics:
@@ -38,7 +39,7 @@ def main(params):
         pred = out.argmax(1)
         x, y, pred = x.squeeze().numpy(), y.squeeze().numpy(), pred.squeeze().numpy()
         fig = os.path.join(figures_dir, '{}.png'.format(i))
-        plot_prediction(x, y, pred, model.mode, out_file=fig)
+        plot_prediction(x, y, pred, model.mode, out_file=None)
 
 
 def plot_prediction(x, label, pred, mode, out_file=None):
@@ -46,34 +47,46 @@ def plot_prediction(x, label, pred, mode, out_file=None):
     bounds_l = [0, 1, 2, 3, 4, 5, 6]
     bound_norm_l = colors.BoundaryNorm(bounds_l, len(bounds_l))
 
+    classes = ['flood', 'sprinkler', 'pivot', 'rainfed', 'uncultivated']
     cmap_pred = colors.ListedColormap(['green', 'yellow', 'blue', 'pink', 'grey'])
-    bounds_p = [1, 2, 3, 4, 5, 6]
-    bound_norm_p = colors.BoundaryNorm(bounds_p, len(bounds_p))
 
     fig, ax = plt.subplots(ncols=5, nrows=1, figsize=(20, 10))
 
     r, g, b = x[0, :, :].astype('uint8'), x[1, :, :].astype('uint8'), x[2, :, :].astype('uint8')
     rgb = np.dstack([r, g, b])
-    ax[0].imshow(rgb)
+    im = ax[0].imshow(rgb)
     ax[0].set(xlabel='image')
+    divider = make_axes_locatable(ax[0])
+    cax = divider.append_axes('bottom', size='10%', pad=0.6)
+    cb = fig.colorbar(im, cax=cax, orientation='horizontal')
 
-    std_ndvi = x[4, :, :]
-    mx_ndvi = x[5, :, :]
-
-    ax[1].imshow(mx_ndvi, cmap='RdYlGn_r')
+    mx_ndvi = x[5, :, :] / 1000.
+    im = ax[1].imshow(mx_ndvi, cmap='RdYlGn')
     ax[1].set(xlabel='max_ndvi')
+    divider = make_axes_locatable(ax[1])
+    cax = divider.append_axes('bottom', size='10%', pad=0.6)
+    cb = fig.colorbar(im, cax=cax, orientation='horizontal')
 
-    ax[2].imshow(std_ndvi, cmap='cool')
+    std_ndvi = x[4, :, :] / 1000.
+    im = ax[2].imshow(std_ndvi, cmap='cool')
     ax[2].set(xlabel='std_ndvi')
+    divider = make_axes_locatable(ax[2])
+    cax = divider.append_axes('bottom', size='10%', pad=0.6)
+    cb = fig.colorbar(im, cax=cax, orientation='horizontal')
 
-    ax[3].imshow(label, cmap=cmap_label, norm=bound_norm_l)
+    im = ax[3].imshow(label, cmap=cmap_label, norm=bound_norm_l)
     ax[3].set(xlabel='label {}'.format(np.unique(label)))
+    divider = make_axes_locatable(ax[3])
+    cax = divider.append_axes('bottom', size='10%', pad=0.6)
+    cb = fig.colorbar(im, cax=cax, orientation='horizontal')
 
-    ax[4].imshow(pred, cmap=cmap_pred, norm=bound_norm_p)
+    im = ax[4].imshow(pred, cmap=cmap_pred, norm=None)
     ax[4].set(xlabel='pred {}'.format(np.unique(pred)))
+    divider = make_axes_locatable(ax[4])
+    cax = divider.append_axes('bottom', size='10%', pad=0.6)
+    cb = fig.colorbar(im, cax=cax, orientation='horizontal')
+    cb.ax.set_xticklabels(classes)
 
-    # ax[5].imshow(pred[:, :, 3:], cmap=cmap_pred, norm=bound_norm_p)
-    # ax[5].set(xlabel='pred {}'.format(np.unique(pred)))
 
     plt.tight_layout()
     if out_file:
@@ -81,13 +94,15 @@ def plot_prediction(x, label, pred, mode, out_file=None):
         plt.close()
     else:
         plt.show()
+        exit()
 
 
 if __name__ == '__main__':
-    checkpoint_pth = '/home/dgketchum/PycharmProjects/itype/models/unet/results/pc-2021.03.25.13.15-unet-rgbn_snt'
+    project = '/home/dgketchum/PycharmProjects/itype'
+    checkpoint_pth = os.path.join(project, 'models/unet/nas/cas-2021.03.24.11.02-unet-rgbn_snt')
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--model', default='unet')
-    parser.add_argument('--mode', default='rgbn_snt')
+    parser.add_argument('--mode', default='rgbn')
     parser.add_argument('--gpu', default='RTX')
     parser.add_argument('--machine', default='pc')
     parser.add_argument('--nodes', default=1, type=int)
