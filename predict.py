@@ -35,11 +35,11 @@ def main(params):
 
     loader = model.test_dataloader()
     for i, (x, y) in enumerate(loader):
-        out = model(x)  # .permute(0, 2, 3, 1)
+        out = model(x)
         pred = out.argmax(1)
         x, y, pred = x.squeeze().numpy(), y.squeeze().numpy(), pred.squeeze().numpy()
         fig = os.path.join(figures_dir, '{}.png'.format(i))
-        plot_prediction(x, y, pred, model.mode, out_file=None)
+        plot_prediction(x, y, pred, model.mode, out_file=fig)
 
 
 def plot_prediction(x, label, pred, mode, out_file=None):
@@ -49,6 +49,8 @@ def plot_prediction(x, label, pred, mode, out_file=None):
 
     classes = ['flood', 'sprinkler', 'pivot', 'rainfed', 'uncultivated']
     cmap_pred = colors.ListedColormap(['green', 'yellow', 'blue', 'pink', 'grey'])
+    bounds_p = [1, 2, 3, 4, 5]
+    bound_norm_p = colors.BoundaryNorm(bounds_p, len(bounds_p), extend='max')
 
     fig, ax = plt.subplots(ncols=5, nrows=1, figsize=(20, 10))
 
@@ -79,14 +81,14 @@ def plot_prediction(x, label, pred, mode, out_file=None):
     divider = make_axes_locatable(ax[3])
     cax = divider.append_axes('bottom', size='10%', pad=0.6)
     cb = fig.colorbar(im, cax=cax, orientation='horizontal')
+    cb.set_ticks([])
 
-    im = ax[4].imshow(pred, cmap=cmap_pred, norm=None)
+    im = ax[4].imshow(pred, cmap=cmap_pred, norm=bound_norm_p)
     ax[4].set(xlabel='pred {}'.format(np.unique(pred)))
     divider = make_axes_locatable(ax[4])
     cax = divider.append_axes('bottom', size='10%', pad=0.6)
     cb = fig.colorbar(im, cax=cax, orientation='horizontal')
     cb.ax.set_xticklabels(classes)
-
 
     plt.tight_layout()
     if out_file:
@@ -94,7 +96,6 @@ def plot_prediction(x, label, pred, mode, out_file=None):
         plt.close()
     else:
         plt.show()
-        exit()
 
 
 if __name__ == '__main__':

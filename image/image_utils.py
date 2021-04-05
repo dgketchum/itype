@@ -35,7 +35,7 @@ def write_pth_subsets(in_, _out, start_ct=None):
         sub_f, sub_l = tile(features), tile(label)
         for f, l in zip(sub_f, sub_l):
             if np.any(l):
-                f[:, :, -2:] = f[:, :, -2:] * 1000
+                f[:, :, -4:] = f[:, :, -4:] * 1000
                 stack = np.concatenate([f, l], axis=2).astype(np.int16)
                 stack = torch.tensor(stack)
                 name_ = os.path.join(_out, '{}.pth'.format(ct))
@@ -180,17 +180,19 @@ def get_transforms(in_, out_norm):
 
 if __name__ == '__main__':
     home = '/media/nvm/itype'
+    if not os.path.isdir(home):
+        home = '/home/dgketchum/itype'
     instrument = 'snt'
     yr_ = str(2019)
     split = 'train'
     tif_recs = os.path.join(home, 'tif_{}'.format(instrument), yr_, split)
     pth_recs = os.path.join(home, 'pth_{}'.format(instrument), yr_, split)
-    # write_pth_subsets(tif_recs, pth_recs, start_ct=0)
+    write_pth_subsets(tif_recs, pth_recs, start_ct=0)
 
-    for split in ['test', 'train', 'valid']:
-        dir_ = os.path.join(home, 'pth_{}'.format(instrument), '2019', split)
-        pltt = os.path.join(home, 'plot_pth_{}'.format(instrument))
-        write_pth_image_plots(dir_, pltt)
+    # for split in ['test', 'train', 'valid']:
+    #     dir_ = os.path.join(home, 'pth_{}'.format(instrument), '2019', split)
+    #     pltt = os.path.join(home, 'plot_pth_{}'.format(instrument))
+    #     write_pth_image_plots(dir_, pltt)
 
     # norms = os.path.join(home, 'normalize')
     # dir_ = os.path.join(home, 'pth_{}'.format(instrument), 'train')

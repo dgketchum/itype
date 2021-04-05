@@ -44,6 +44,7 @@ def get_config(**params):
               'rdm_seed': 1,
               'epochs': 100,
               'lr': 0.0013,
+              'unet_dim_seed': 32,
               'n_classes': N_CLASSES,
               'device_ct': device_ct,
               'node_ct': params.nodes,

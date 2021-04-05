@@ -23,7 +23,7 @@ class UNet(pl.LightningModule):
         self.hparams = hparams
         self.configure_model()
 
-        seed = 32
+        seed = 64
         self.inc = DoubleConv(self.n_channels, seed)
         self.down1 = Down(seed, seed * 2)
         self.down2 = Down(seed * 2, seed * 4)
@@ -84,19 +84,24 @@ class UNet(pl.LightningModule):
         self.log('train_acc_epoch', self.train_acc.compute())
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch
+        x, g, y = batch
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
         self.log('val_loss', loss)
-        mask = y.flatten() > 0
-        y = y.flatten()[mask]
-        pred = torch.softmax(logits, 1)
-        pred = torch.argmax(pred, dim=1).flatten()[mask]
-        self.log('val_acc', self.valid_acc(pred, y), on_epoch=True)
-        self.log('val_f1', self.valid_f1(pred, y), on_epoch=True)
-        self.log('val_rec', self.valid_rec(pred, y), on_epoch=True)
-        self.log('val_prec', self.valid_prec(pred, y), on_epoch=True)
-        return {'val_acc': self.valid_acc(pred, y)}
+        y, pred = self._mask_out(y, logits)
+        acc = self.valid_acc(pred, y)
+        f1 = self.valid_f1(pred, y)
+        rec = self.valid_rec(pred, y)
+        prec = self.valid_prec(pred, y)
+        self.log('val_acc', acc, on_epoch=True)
+        self.log('val_f1', f1, on_epoch=True)
+        self.log('val_rec', rec, on_epoch=True)
+        self.log('val_prec', prec, on_epoch=True)
+        return {'val_loss': loss,
+                'val_acc': acc,
+                'val_f1': f1,
+                'val_rec': rec,
+                'val_prec': prec}
 
     def test_step(self, batch, batch_idx):
         x, y = batch
