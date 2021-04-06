@@ -64,6 +64,7 @@ class ITypeDataStack(object):
 
     def export_geotiff(self, overwrite=False):
         self._build_data()
+        bucket_contents = None
         if not overwrite:
             bucket_contents = self._get_bucket_contents()
         for idx in range(self.grid_fc.size().getInfo()):
@@ -71,7 +72,7 @@ class ITypeDataStack(object):
             fid = patch.getInfo()['properties']['FID']
             name_ = '{}_{}'.format(self.split, str(fid).rjust(7, '0'))
             if not overwrite:
-                if '{}.tif'.format(name_) in bucket_contents:
+                if name_ in bucket_contents:
                     print('{} exists, skippping'.format(name_))
                     continue
             kwargs = {'image': self.image_stack,
@@ -109,14 +110,16 @@ class ITypeDataStack(object):
     def _get_bucket_contents(self):
         dct = {}
         client = storage.Client()
-        for blob in client.list_blobs(self.gcs_bucket):
+        blob_list = client.list_blobs(self.gcs_bucket)
+        for blob in blob_list:
             dirname = os.path.dirname(blob.name)
             b_name = os.path.basename(blob.name)
             if dirname not in dct.keys():
                 dct[dirname] = [b_name]
             else:
                 dct[dirname].append(b_name)
-        l = [x.split('.')[0] for x in dct['']]
+        l = [[x.split('.')[0] for x in dct[k] if x.endswith('.tif')] for k, v in dct.items()]
+        l = [item for sublist in l for item in sublist]
         return l
 
     def _build_image(self, roi, start, end):
@@ -162,5 +165,5 @@ class ITypeDataStack(object):
 if __name__ == '__main__':
     for split in ['test']:
         stack = ITypeDataStack(2019, split=split, satellite='sentinel')
-        stack.export_geotiff(overwrite=True)
+        stack.export_geotiff(overwrite=False)
 # ========================= EOF ====================================================================
