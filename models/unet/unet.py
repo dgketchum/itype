@@ -73,6 +73,13 @@ class UNet(pl.LightningModule):
         loss = nn.CrossEntropyLoss(ignore_index=0, weight=weights)
         return loss(logits, labels)
 
+    def _mask_out(self, y, logits):
+        mask = y.flatten() > 0
+        y = y.flatten()[mask]
+        pred = torch.softmax(logits, 1)
+        pred = torch.argmax(pred, dim=1).flatten()[mask]
+        return y, pred
+
     def training_step(self, batch, batch_idx):
         x, y = batch
         logits = self.forward(x)
