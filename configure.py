@@ -33,6 +33,8 @@ def get_config(**params):
     data = '/media/nvm/itype_/pth_snt/2019'
     if not os.path.isdir(data):
         data = '/nobackup/dketchu1/itype/pth_snt/2019'
+    if not os.path.isdir(data):
+        data = '/home/ubuntu/itype/pth_snt/2019'
 
     device_ct = torch.cuda.device_count()
     print('device count: {}'.format(device_ct))

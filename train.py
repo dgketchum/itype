@@ -33,23 +33,22 @@ def main(params):
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=os.path.join(log_dir, 'checkpoints'),
-        save_top_k=5,
-        monitor='val_acc',
+        save_top_k=1,
+        save_last=True,
+        monitor='val_loss',
         verbose=True)
-
-    stop_callback = EarlyStopping(
-        monitor='val_acc',
-        mode='auto',
-        patience=25,
-        verbose=False)
 
     lr_monitor = LearningRateMonitor(logging_interval='epoch')
 
+    accelerator = 'ddp' if config.device_ct > 1 else None
+
     trainer = Trainer(
         precision=16,
+        min_epochs=100,
+        accelerator=accelerator,
         gpus=config.device_ct,
         num_nodes=config.node_ct,
-        callbacks=[checkpoint_callback, stop_callback, lr_monitor],
+        callbacks=[checkpoint_callback, lr_monitor],
         progress_bar_refresh_rate=params.progress,
         log_every_n_steps=5,
         logger=logger)
