@@ -84,7 +84,7 @@ class UNet(pl.LightningModule):
         self.log('train_acc_epoch', self.train_acc.compute())
 
     def validation_step(self, batch, batch_idx):
-        x, g, y = batch
+        x, y = batch
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
         self.log('val_loss', loss)
