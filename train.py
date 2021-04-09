@@ -26,7 +26,7 @@ def main(params):
 
     config = get_config(**vars(params))
 
-    model = UNet(config)
+    model = UNet(**vars(config))
 
     log_dir = prepare_output(config)
     logger = TensorBoardLogger(log_dir, name='log')

@@ -7,33 +7,29 @@ and computer-assisted intervention (pp. 234-241).
 Springer, Cham.
 """
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import pytorch_lightning as pl
 
-from image.data import ITypeDataModule
+from models.standard import StandardModule
 
 
-class UNet(pl.LightningModule):
-    def __init__(self, hparams, bilinear=True):
-        super(UNet, self).__init__()
-
-        self.hparams = hparams
-        self.configure_model()
+class UNet(StandardModule):
+    def __init__(self, **hparams):
+        StandardModule.__init__(self, **hparams)
 
         seed = self.unet_dim_seed
         self.inc = DoubleConv(self.n_channels, seed)
         self.down1 = Down(seed, seed * 2)
         self.down2 = Down(seed * 2, seed * 4)
         self.down3 = Down(seed * 4, seed * 8)
-        factor = 2 if bilinear else 1
+        factor = 2
         self.down4 = Down(seed * 8, seed * 16 // factor)
-        self.up1 = Up(seed * 16, seed * 8 // factor, bilinear)
-        self.up2 = Up(seed * 8, seed * 4 // factor, bilinear)
-        self.up3 = Up(seed * 4, seed * 2 // factor, bilinear)
-        self.up4 = Up(seed * 2, seed, bilinear)
+        self.up1 = Up(seed * 16, seed * 8 // factor)
+        self.up2 = Up(seed * 8, seed * 4 // factor)
+        self.up3 = Up(seed * 4, seed * 2 // factor)
+        self.up4 = Up(seed * 2, seed)
         self.outc = OutConv(seed, self.n_classes)
 
         self.train_acc = pl.metrics.Accuracy()
@@ -55,75 +51,12 @@ class UNet(pl.LightningModule):
         logits = self.outc(x)
         return logits
 
-    def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.lr)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                               mode='max',
-                                                               factor=0.5,
-                                                               patience=15,
-                                                               verbose=True)
-
-        return {'optimizer': optimizer,
-                'lr_scheduler': {'scheduler': scheduler,
-                                 'interval': 'epoch',
-                                 'monitor': 'val_acc'}}
-
-    def cross_entropy_loss(self, logits, labels):
-        weights = torch.tensor(self.hparams['sample_n'], dtype=torch.float32, device=self.device)
-        loss = nn.CrossEntropyLoss(ignore_index=0, weight=weights)
-        return loss(logits, labels)
-
-    def _mask_out(self, y, logits):
-        mask = y.flatten() > 0
-        y = y.flatten()[mask]
-        pred = torch.softmax(logits, 1)
-        pred = torch.argmax(pred, dim=1).flatten()[mask]
-        return y, pred
-
-    def training_step(self, batch, batch_idx):
-        x, y = batch
-        logits = self.forward(x)
-        loss = self.cross_entropy_loss(logits, y)
-        self.log('train_loss', loss)
-        return {'loss': loss}
-
-    def training_epoch_end(self, outputs):
-        self.log('train_acc_epoch', self.train_acc.compute())
-
-    def validation_step(self, batch, batch_idx):
-        x, y = batch
-        logits = self.forward(x)
-        loss = self.cross_entropy_loss(logits, y)
-        self.log('val_loss', loss)
-        y, pred = self._mask_out(y, logits)
-        acc = self.valid_acc(pred, y)
-        f1 = self.valid_f1(pred, y)
-        rec = self.valid_rec(pred, y)
-        prec = self.valid_prec(pred, y)
-        self.log('val_acc', acc, on_epoch=True)
-        self.log('val_f1', f1, on_epoch=True)
-        self.log('val_rec', rec, on_epoch=True)
-        self.log('val_prec', prec, on_epoch=True)
-        return {'val_loss': loss,
-                'val_acc': acc,
-                'val_f1': f1,
-                'val_rec': rec,
-                'val_prec': prec}
-
-    def test_step(self, batch, batch_idx):
-        x, y = batch
-        logits = self.forward(x)
-        loss = self.cross_entropy_loss(logits, y)
-        self.log('test_loss', loss)
-        mask = y.flatten() > 0
-        y = y.flatten()[mask]
-        pred = torch.softmax(logits, 1)
-        pred = torch.argmax(pred, dim=1).flatten()[mask]
-        self.log('test_acc', self.valid_acc(pred, y), on_epoch=True)
-        self.log('test_f1', self.valid_f1(pred, y), on_epoch=True)
-        self.log('test_rec', self.valid_rec(pred, y), on_epoch=True)
-        self.log('test_prec', self.valid_prec(pred, y), on_epoch=True)
-        return {'test_acc': self.valid_acc(pred, y)}
+    def predict_example(self, x, g, y):
+        out = self.forward(x)
+        pred = out.argmax(1)
+        x, g = x.squeeze().numpy(), g.squeeze().numpy()
+        y, pred = y.squeeze().numpy(), pred.squeeze().numpy()
+        return x, g, y, pred
 
     @staticmethod
     def validation_end(outputs):
@@ -131,25 +64,6 @@ class UNet(pl.LightningModule):
         tensorboard_logs = {'val_acc': avg_loss}
         return {'avg_val_acc': avg_loss, 'log': tensorboard_logs}
 
-    def __dataloader(self):
-        itdl = ITypeDataModule(self.hparams)
-        loaders = {'train': itdl.train_dataloader(),
-                   'val': itdl.val_loader(),
-                   'test': itdl.test_loader()}
-        return loaders
-
-    def train_dataloader(self):
-        return self.__dataloader()['train']
-
-    def val_dataloader(self):
-        return self.__dataloader()['val']
-
-    def test_dataloader(self):
-        return self.__dataloader()['test']
-
-    def configure_model(self):
-        for name, val in self.hparams.items():
-            setattr(self, name, val)
 
 
 class DoubleConv(pl.LightningModule):

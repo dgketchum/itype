@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 
-from data_load.dataset import IrrMapDataModule
+from image.data import ITypeDataModule
 
 """Standard Module holds all methods we want standard accross models"""
 
@@ -111,7 +111,7 @@ class StandardModule(pl.LightningModule):
         return {'avg_val_acc': avg_loss, 'log': tensorboard_logs}
 
     def __dataloader(self):
-        itdl = IrrMapDataModule(self.hparams)
+        itdl = ITypeDataModule(self.hparams)
         loaders = {'train': itdl.train_dataloader(),
                    'valid': itdl.val_loader(),
                    'test': itdl.test_loader()}
