@@ -23,7 +23,7 @@ def get_config(**params):
                            'batch_size': int(batch * 24)},
                    'rgbn': {'n_channels': 4,
                             'batch_size': int(batch * 24)},
-                   'rgbn_snt': {'n_channels': 6,
+                   'rgbn_snt': {'n_channels': 8,
                                 'batch_size': int(batch * 24)},
                    'grey_snt': {'n_channels': 3,
                                 'batch_size': int(batch * 24)}}

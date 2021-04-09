@@ -38,7 +38,7 @@ class ITypeDataset(Dataset):
         elif self.mode == 'rgbn':
             features = img[:4, :, :].float()
         elif self.mode == 'rgbn_snt':
-            features = img[:6, :, :].float()
+            features = img[:8, :, :].float()
         elif self.mode == 'grey_snt':
             grey = img[0, :, :] * 0.2989 + img[1, :, :] * 0.5870 + img[2, :, :] * 0.1140
             grey = grey.unsqueeze(0).float()
