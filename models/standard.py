@@ -48,8 +48,8 @@ class StandardModule(pl.LightningModule):
         return y, pred
 
     def training_step(self, batch, batch_idx):
-        x, g, y = batch
-        x, g, y = torch.squeeze(x), torch.squeeze(g), torch.squeeze(y)
+        x, y = batch
+        x, y = torch.squeeze(x), torch.squeeze(y)
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
         self.log('train_loss', loss)
@@ -61,8 +61,8 @@ class StandardModule(pl.LightningModule):
         self.log('train_acc_epoch', self.train_acc.compute())
 
     def validation_step(self, batch, batch_idx):
-        x, g, y = batch
-        x, g, y = torch.squeeze(x), torch.squeeze(g), torch.squeeze(y)
+        x, y = batch
+        x, y = torch.squeeze(x), torch.squeeze(y)
         logits = self.forward(x)
         loss = self.cross_entropy_loss(logits, y)
         self.log('val_loss', loss)
@@ -100,9 +100,8 @@ class StandardModule(pl.LightningModule):
         x = x.reshape(x.shape[0], g.shape[-1], g.shape[-1], x.shape[-1])
         x = x.squeeze().permute(2, 0, 1).numpy()
         pred = pred.reshape(y.shape).squeeze().numpy()
-        g = g.squeeze().numpy()
         y = y.squeeze().numpy()
-        return x, g, y, pred
+        return x, y, pred
 
     @staticmethod
     def validation_end(outputs):
