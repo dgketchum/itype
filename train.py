@@ -44,7 +44,7 @@ def main(params):
 
     trainer = Trainer(
         precision=16,
-        min_epochs=100,
+        min_epochs=50,
         accelerator=accelerator,
         gpus=config.device_ct,
         num_nodes=config.node_ct,
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     parser.add_argument('--machine', default='pc')
     parser.add_argument('--nodes', default=1, type=int)
     parser.add_argument('--progress', default=0, type=int)
-    parser.add_argument('--workers', default=4, type=int)
+    parser.add_argument('--workers', default=8, type=int)
     args = parser.parse_args()
     main(args)
 # ========================================================================================

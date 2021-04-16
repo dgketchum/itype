@@ -12,21 +12,21 @@ N_CLASSES = 6
 def get_config(**params):
     params = Namespace(**params)
 
-    gpu_map = {'V100': 1.5,
-               'RTX': 1,
+    gpu_map = {'V100': 3.0,
+               'RTX': 0.5,
                'K40': 1.5}
     batch = gpu_map[params.gpu]
 
     experiments = {'grey': {'n_channels': 1,
-                            'batch_size': int(batch * 24)},
+                            'batch_size': int(batch * 112)},
                    'rgb': {'n_channels': 3,
-                           'batch_size': int(batch * 24)},
+                           'batch_size': int(batch * 112)},
                    'rgbn': {'n_channels': 4,
-                            'batch_size': int(batch * 24)},
+                            'batch_size': int(batch * 112)},
                    'rgbn_snt': {'n_channels': 8,
-                                'batch_size': int(batch * 24)},
+                                'batch_size': int(batch * 112)},
                    'grey_snt': {'n_channels': 3,
-                                'batch_size': int(batch * 24)}}
+                                'batch_size': int(batch * 112)}}
 
     print('{} batch factor: {}'.format(params.gpu, batch))
 
@@ -34,7 +34,7 @@ def get_config(**params):
     if not os.path.isdir(data):
         data = '/nobackup/dketchu1/itype/pth_snt/2019'
     if not os.path.isdir(data):
-        data = '/home/ubuntu/itype/pth_snt/2019'
+        data = '/home/ubuntu/data/itype/pth_snt/2019'
 
     device_ct = torch.cuda.device_count()
     print('device count: {}'.format(device_ct))
