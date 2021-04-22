@@ -35,7 +35,7 @@ def main(params):
         dirpath=os.path.join(log_dir, 'checkpoints'),
         save_top_k=1,
         save_last=True,
-        monitor='val_loss',
+        monitor='val_acc',
         verbose=True)
 
     lr_monitor = LearningRateMonitor(logging_interval='epoch')

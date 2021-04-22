@@ -21,7 +21,7 @@ def main(params):
 
     model = UNet.load_from_checkpoint(checkpoint_path=checkpoint)
     model.freeze()
-    model.hparams.dataset_folder = '/media/nvm/itype/pth_snt/2019'
+    model.hparams.dataset_folder = '/media/nvm/itype_/pth_snt/2019'
     model.hparams.batch_size = 1
 
     if params.metrics:
@@ -33,7 +33,7 @@ def main(params):
 
         trainer.test(model)
 
-    loader = model.test_dataloader()
+    loader = model.val_dataloader()
     for i, (x, y) in enumerate(loader):
         out = model(x)
         pred = out.argmax(1)
@@ -62,16 +62,16 @@ def plot_prediction(x, label, pred, mode, out_file=None):
     cax = divider.append_axes('bottom', size='10%', pad=0.6)
     cb = fig.colorbar(im, cax=cax, orientation='horizontal')
 
-    mx_ndvi = x[5, :, :] / 1000.
+    mx_ndvi = x[4, :, :] / 1000.
     im = ax[1].imshow(mx_ndvi, cmap='RdYlGn')
-    ax[1].set(xlabel='max_ndvi')
+    ax[1].set(xlabel='ndvi early')
     divider = make_axes_locatable(ax[1])
     cax = divider.append_axes('bottom', size='10%', pad=0.6)
     cb = fig.colorbar(im, cax=cax, orientation='horizontal')
 
-    std_ndvi = x[4, :, :] / 1000.
-    im = ax[2].imshow(std_ndvi, cmap='cool')
-    ax[2].set(xlabel='std_ndvi')
+    std_ndvi = x[7, :, :] / 1000.
+    im = ax[2].imshow(std_ndvi, cmap='RdYlGn')
+    ax[2].set(xlabel='ndvi late')
     divider = make_axes_locatable(ax[2])
     cax = divider.append_axes('bottom', size='10%', pad=0.6)
     cb = fig.colorbar(im, cax=cax, orientation='horizontal')
@@ -100,7 +100,7 @@ def plot_prediction(x, label, pred, mode, out_file=None):
 
 if __name__ == '__main__':
     project = '/home/dgketchum/PycharmProjects/itype'
-    checkpoint_pth = os.path.join(project, 'models/unet/nas/cas-2021.03.24.11.02-unet-rgbn_snt')
+    checkpoint_pth = os.path.join(project, 'models/unet/results/aws-2021.04.22.00.39-unet-rgbn_snt')
     parser = ArgumentParser(add_help=False)
     parser.add_argument('--model', default='unet')
     parser.add_argument('--mode', default='rgbn')

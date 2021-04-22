@@ -179,12 +179,12 @@ def get_transforms(in_, out_norm):
 
 
 if __name__ == '__main__':
-    home = '/media/nvm/itype'
+    home = '/media/nvm/itype_'
     if not os.path.isdir(home):
         home = '/home/dgketchum/itype'
     instrument = 'snt'
     yr_ = str(2019)
-    split = 'train'
+    split = 'valid'
     tif_recs = os.path.join(home, 'tif_{}'.format(instrument), yr_, split)
     pth_recs = os.path.join(home, 'pth_{}'.format(instrument), yr_, split)
     write_pth_subsets(tif_recs, pth_recs, start_ct=0)
