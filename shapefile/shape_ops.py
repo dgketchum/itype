@@ -6,6 +6,7 @@ from shapely.geometry import shape
 
 
 def balance_features(grids, n_features=13000, out_file=None):
+    nones = 0
     d = {'F': [],
          'S': [],
          'P': [],
@@ -39,7 +40,11 @@ def balance_features(grids, n_features=13000, out_file=None):
         if itype in ['F', 'NI', 'NC'] and len(d[itype]) >= n_features:
             continue
         else:
-            d[itype].append(f)
+            try:
+                d[itype].append(f)
+            except KeyError:
+                nones += 1
+    print('{} IType none'.format(nones))
     ct = 1
     with fiona.open(out_file, 'w', **meta) as dst:
         for k, v in d.items():
@@ -61,10 +66,7 @@ def balance_features(grids, n_features=13000, out_file=None):
 
 
 if __name__ == '__main__':
-    in_ = '/media/hdisk/itype/grid'
-    _shapes = ['itype_grid.shp', 'wetlands_grid.shp', 'dryland_grid.shp']
-    _files = [os.path.join(in_, s) for s in _shapes]
-    # out_ = os.path.join(in_, 'grid_2009', 'mt_grid_bal_2009.shp')
-    out_ = '/home/dgketchum/Downloads/test_write.shp'
-    balance_features(_files, n_features=5300, out_file=out_)
+    _shapes = ['/media/hdisk/itype/wa/grid_select_attr_1536.shp']
+    out_ = '/media/hdisk/itype/wa/wa_grid_bal_2019.shp'
+    balance_features(_shapes, n_features=10000, out_file=out_)
 # ========================= EOF ====================================================================

@@ -36,21 +36,22 @@ KERNEL = ee.Kernel.fixed(KERNEL_SIZE, KERNEL_SIZE, lists)
 
 class ITypeDataStack(object):
 
-    def __init__(self, year, split='train', satellite='landsat', fid=None):
+    def __init__(self, year, split='train', satellite='sentinel', fid=None, dataset='mt'):
 
         self.fid = fid
         self.year = year
         self.start, self.end = '{}-01-01'.format(year), '{}-12-31'.format(year)
         self.split = split
+        self.dataset = dataset
 
-        self.bounds = 'users/dgketchum/boundaries/MT'
+        self.bounds = 'users/dgketchum/boundaries/{}'.format(dataset.upper())
 
-        self.grid = 'users/dgketchum/itype/mt_grid_{}'.format(year)
-        self.irr_labels = 'users/dgketchum/itype/mt_itype_{}'.format(year)
+        self.grid = 'users/dgketchum/itype/{}_grid_{}'.format(dataset, year)
+        self.irr_labels = 'users/dgketchum/itype/{}_itype_{}'.format(dataset, year)
 
-        self.dryland_labels = 'users/dgketchum/itype/dryland'
-        self.uncult_labels = 'users/dgketchum/itype/uncultivated'
-        self.wetland_labels = 'users/dgketchum/itype/wetlands'
+        self.dryland_labels = 'users/dgketchum/itype/{}_dryland'.format(dataset)
+        self.uncult_labels = 'users/dgketchum/itype/{}_uncultivated'.format(dataset)
+        self.wetland_labels = 'users/dgketchum/itype/{}_wetlands'.format(dataset)
         self.projection = ee.Projection('EPSG:3857')
 
         self.satellite = satellite
@@ -70,7 +71,7 @@ class ITypeDataStack(object):
         for idx in range(self.grid_fc.size().getInfo()):
             patch = ee.Feature(self.grid_fc.get(idx))
             fid = patch.getInfo()['properties']['FID']
-            name_ = '{}_{}'.format(self.split, str(fid).rjust(7, '0'))
+            name_ = '{}_{}_{}'.format(self.dataset, self.split, str(fid).rjust(7, '0'))
             if not overwrite:
                 if name_ in bucket_contents:
                     print('{} exists, skippping'.format(name_))
@@ -156,14 +157,15 @@ class ITypeDataStack(object):
     def _start_task(self):
         try:
             self.task.start()
-        except ee.ee_exception.EEException:
+        except ee.ee_exception.EEException as e:
             print('waiting 50 minutes to export')
+            print('{}'.format(e))
             time.sleep(3000)
             self.task.start()
 
 
 if __name__ == '__main__':
     for split in ['test']:
-        stack = ITypeDataStack(2019, split=split, satellite='sentinel')
+        stack = ITypeDataStack(2019, split=split, satellite='sentinel', dataset='wa')
         stack.export_geotiff(overwrite=False)
 # ========================= EOF ====================================================================
