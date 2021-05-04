@@ -165,7 +165,7 @@ class ITypeDataStack(object):
 
 
 if __name__ == '__main__':
-    for split in ['test']:
+    for split in ['train', 'valid']:
         stack = ITypeDataStack(2019, split=split, satellite='sentinel', dataset='wa')
         stack.export_geotiff(overwrite=False)
 # ========================= EOF ====================================================================
