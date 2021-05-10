@@ -68,7 +68,10 @@ class ITypeDataStack(object):
         bucket_contents = None
         if not overwrite:
             bucket_contents = self._get_bucket_contents()
-        for idx in range(self.grid_fc.size().getInfo()):
+
+        idxs = list(range(self.grid_fc.size().getInfo()))
+        idxs.sort(reverse=True)
+        for idx in idxs:
             patch = ee.Feature(self.grid_fc.get(idx))
             fid = patch.getInfo()['properties']['FID']
             name_ = '{}_{}_{}'.format(self.dataset, self.split, str(fid).rjust(7, '0'))
@@ -165,7 +168,7 @@ class ITypeDataStack(object):
 
 
 if __name__ == '__main__':
-    for split in ['train', 'valid']:
+    for split in ['valid']:
         stack = ITypeDataStack(2019, split=split, satellite='sentinel', dataset='wa')
         stack.export_geotiff(overwrite=False)
 # ========================= EOF ====================================================================

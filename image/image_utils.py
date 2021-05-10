@@ -187,12 +187,12 @@ if __name__ == '__main__':
     split = 'valid'
     tif_recs = os.path.join(home, 'tif_{}'.format(instrument), yr_, split)
     pth_recs = os.path.join(home, 'pth_{}'.format(instrument), yr_, split)
-    write_pth_subsets(tif_recs, pth_recs, start_ct=0)
+    # write_pth_subsets(tif_recs, pth_recs, start_ct=0)
 
-    # for split in ['test', 'train', 'valid']:
-    #     dir_ = os.path.join(home, 'pth_{}'.format(instrument), '2019', split)
-    #     pltt = os.path.join(home, 'plot_pth_{}'.format(instrument))
-    #     write_pth_image_plots(dir_, pltt)
+    for split in ['test', 'train', 'valid']:
+        dir_ = os.path.join(home, 'pth_{}'.format(instrument), '2019', split)
+        pltt = os.path.join(home, 'plot_pth_{}'.format(instrument))
+        write_pth_image_plots(dir_, pltt)
 
     # norms = os.path.join(home, 'normalize')
     # dir_ = os.path.join(home, 'pth_{}'.format(instrument), 'train')
