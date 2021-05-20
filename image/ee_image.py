@@ -70,7 +70,7 @@ class ITypeDataStack(object):
             bucket_contents = self._get_bucket_contents()
 
         idxs = list(range(self.grid_fc.size().getInfo()))
-        idxs.sort(reverse=True)
+        idxs.sort(reverse=False)
         for idx in idxs:
             patch = ee.Feature(self.grid_fc.get(idx))
             fid = patch.getInfo()['properties']['FID']
